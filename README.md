@@ -1,45 +1,35 @@
-# Evoodoo: Evolution + Odoo = ❤️
 
-## Try it out now!
+<!-- /!\ Non OCA Context : Set here the badge of your runbot / runboat instance. -->
+[![Pre-commit Status](https://github.com/dudatende/evoodoo/actions/workflows/pre-commit.yml/badge.svg?branch=18.0)](https://github.com/dudatende/evoodoo/actions/workflows/pre-commit.yml?query=branch%3A18.0)
+[![Build Status](https://github.com/dudatende/evoodoo/actions/workflows/test.yml/badge.svg?branch=18.0)](https://github.com/dudatende/evoodoo/actions/workflows/test.yml?query=branch%3A18.0)
+[![codecov](https://codecov.io/gh/dudatende/evoodoo/branch/18.0/graph/badge.svg)](https://codecov.io/gh/dudatende/evoodoo)
+<!-- /!\ Non OCA Context : Set here the badge of your translation instance. -->
 
-```bash
-git clone git@github.com:dudanogueira/evoodoo.git
-cd evoodoo
-docker compose up -d
-```
+<!-- /!\ do not modify above this line -->
 
+# Evoodoo
 
-### CONFIGURING ODOO
+Integrate third party message channels into Odoo's discuss
 
-Go to: http://localhost:8069 
+<!-- /!\ do not modify below this line -->
 
-Evo, Base Automations should already be installed
+<!-- prettier-ignore-start -->
 
-Let's create a new connector. Go to `Evo > New`
+[//]: # (addons)
 
-- Name: test
-- Uuid: 76320171-94ec-455e-89c8-42995918fec6 (you can change it, but we need this in Evolution)
-- URL: http://api:8080
-- APIKEY: `1369429683C4C977415CAAFCCE10F7D57E11`
-- Channel Manager: Select general.
-- Automatic Added Partners: Select Yourself.
+This part will be replaced when running the oca-gen-addons-table script from OCA/maintainer-tools.
 
+[//]: # (end addons)
 
-### CONFIGURING EVOLUTION
-Now, acess Evolution at:
+<!-- prettier-ignore-end -->
 
-http://localhost:8080
+## Licenses
 
-Provide the global apikey: `1369429683C4C977415CAAFCCE10F7D57E11`
+This repository is licensed under [AGPL-3.0](LICENSE).
 
-create a new instance called `test`:
+However, each module can have a totally different license, as long as they adhere to Dudatende
+policy. Consult each module's `__manifest__.py` file, which contains a `license` key
+that explains its license.
 
-configure the Events > Webhook:
-
-- URL: http://crm:8069/evo/connector/76320171-94ec-455e-89c8-42995918fec6
-- Webhook Base64: True
-- Mark All
-
-Save
-
-Now back to Odoo, you should see a start button. Also, the QRCODE should be delivered on the #general channel.
+----
+<!-- /!\ Non OCA Context : Set here the full description of your organization. -->

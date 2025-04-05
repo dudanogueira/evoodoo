@@ -10,7 +10,7 @@ from jinja2 import Template
 import vobject
 from markupsafe import Markup
 from odoo import models, fields, Command, api
-
+import os
 _logger = logging.getLogger(__name__)
 
 
@@ -95,6 +95,33 @@ class EvoConnector(models.Model):
         compute='_compute_status',
         store=False
     )
+
+    @api.model
+    def action_new_connector():
+        """Decides whether to open a modal or regular form based on env variables"""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'New Connector',
+            'res_model': 'evo_connector',
+            'view_mode': 'form',
+            'target': 'new',  # Opens as a modal
+        }        
+        if os.getenv("ODOO_CONNECTOR_MODAL") and os.getenv("EVOLUTION_API_KEY") and os.getenv("EVOLUTION_ODOO_URL"):
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'New Connector',
+                'res_model': 'evo_connector',
+                'view_mode': 'form',
+                'target': 'new',  # Opens as a modal
+            }
+        else:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'New Connector',
+                'res_model': 'evo_connector',
+                'view_mode': 'form',
+                'target': 'current',  # Opens as a regular form
+            }
 
     def action_open_html(self):
         """Opens an HTML content in a new wizard."""
