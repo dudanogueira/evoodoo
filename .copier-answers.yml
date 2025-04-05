@@ -1,0 +1,27 @@
+# Do NOT update manually; changes here will be overwritten by Copier
+_commit: v1.30
+_src_path: https://github.com/OCA/oca-addons-repo-template.git
+additional_ruff_rules: []
+ci: GitHub
+convert_readme_fragments_to_markdown: true
+enable_checklog_odoo: true
+generate_requirements_txt: true
+github_check_license: true
+github_ci_extra_env: {}
+github_enable_codecov: true
+github_enable_makepot: true
+github_enable_stale_action: true
+github_enforce_dev_status_compatibility: true
+include_wkhtmltopdf: true
+odoo_test_flavor: Both
+odoo_version: 18.0
+org_name: Dudatende
+org_slug: dudatende
+rebel_module_groups: []
+repo_description: Integrate third party message channels into Odoo's discuss
+repo_name: Evoodoo
+repo_slug: evoodoo
+repo_website: https://github.com/dudatende/evoodoo
+use_pyproject_toml: true
+use_ruff: true
+
