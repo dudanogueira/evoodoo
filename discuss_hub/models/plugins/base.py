@@ -83,44 +83,53 @@ class Plugin:
         """Find existing channel or create a new one for the partner"""
         # get message id
         message_id = self.get_message_id(payload)
-        # Check if we have an unarchived channel
+        # Check if we have an active channel
         # for this connector and partner as member
-        membership = self.connector.env["discuss.channel.member"].search(
+        channel = self.connector.env["discuss.channel"].search(
             [
-                ("channel_id.discuss_hub_connector", "=", self.connector.id),
-                ("partner_id", "=", partner.parent_id.id),
+                ("discuss_hub_connector", "=", self.connector.id),
+                ("channel_partner_ids.id", "=", partner.parent_id.id),
+                ("active", "=", True),
             ],
-            order="create_date desc",
+            order="id desc",
             limit=1,
         )
-        if membership:
-            channel = membership.channel_id
-            if membership.channel_id.active:
+        if channel:
+            _logger.info(
+                f"action:process_payload event:message.upsert({message_id}) "
+                + f"found channel {channel} for connector {self.connector} "
+                + "REUSING CHANNEL."
+            )
+            return channel
+        
+        # Check if we have an archived channel to potentially reopen
+        archived_channel = self.connector.env["discuss.channel"].search(
+            [
+                ("discuss_hub_connector", "=", self.connector.id),
+                ("channel_partner_ids.id", "=", partner.parent_id.id),
+                ("active", "=", False),
+            ],
+            order="id desc",
+            limit=1,
+        )
+        if archived_channel:
+            if self.connector.reopen_last_archived_channel:
+                archived_channel.action_unarchive()
+                partners_to_add = self.connector.get_initial_routed_partners(
+                    connector=self.connector
+                )
                 _logger.info(
                     f"action:process_payload event:message.upsert({message_id}) "
-                    + f"found channel {channel} for connector {self.connector} "
-                    + "REUSING CHANNEL."
+                    + f"reactivated channel {archived_channel} for connector "
+                    + "REOPENING CHANNEL"
                 )
-                return channel
-            # or reopen if that's the configuration
-            else:
-                if self.connector.reopen_last_archived_channel:
-                    channel.action_unarchive()
-                    partners_to_add = self.connector.get_initial_routed_partners(
-                        connector=self.connector
-                    )
-                    _logger.info(
-                        f"action:process_payload event:message.upsert({message_id}) "
-                        + f"reactivated channel {channel} for connector "
-                        + "REOPENING CHANNEL"
-                    )
-                    channel.add_members(
-                        partner_ids=[p.id for p in partners_to_add],
-                        open_chat_window=True,
-                    )
-                    # broadcast as new channel
-                    channel._broadcast(channel.channel_member_ids.partner_id.ids)
-                    return channel
+                archived_channel.add_members(
+                    partner_ids=[p.id for p in partners_to_add],
+                    open_chat_window=True,
+                )
+                # broadcast as new channel
+                archived_channel._broadcast(archived_channel.channel_member_ids.partner_id.ids)
+                return archived_channel
         # create new channel
         _logger.info(
             f"action:process_payload get_or_create channel ({message_id}) "
@@ -236,6 +245,13 @@ class Plugin:
 
     def update_profile_picture(self, partner, imagebase64, images=None):
         """Update the profile picture of the partner"""
+        # Validate imagebase64 is not empty or whitespace-only
+        if not imagebase64 or not imagebase64.strip():
+            _logger.warning(
+                f"Skipping profile picture update for partner {partner.id}: empty or invalid image data"
+            )
+            return False
+            
         if not images:
             images = DEFAULT_UPDATE_PROFILE_PICS
         _logger.info(f"Updating profile pic: ({partner.id}) of images {images}")
