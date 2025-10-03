@@ -101,7 +101,7 @@ class Plugin:
                 + "REUSING CHANNEL."
             )
             return channel
-        
+
         # Check if we have an archived channel to potentially reopen
         archived_channel = self.connector.env["discuss.channel"].search(
             [
@@ -128,7 +128,9 @@ class Plugin:
                     open_chat_window=True,
                 )
                 # broadcast as new channel
-                archived_channel._broadcast(archived_channel.channel_member_ids.partner_id.ids)
+                archived_channel._broadcast(
+                    archived_channel.channel_member_ids.partner_id.ids
+                )
                 return archived_channel
         # create new channel
         _logger.info(
@@ -248,10 +250,11 @@ class Plugin:
         # Validate imagebase64 is not empty or whitespace-only
         if not imagebase64 or not imagebase64.strip():
             _logger.warning(
-                f"Skipping profile picture update for partner {partner.id}: empty or invalid image data"
+                f"Skipping profile picture update for partner {partner.id}: "
+                "empty or invalid image data"
             )
             return False
-            
+
         if not images:
             images = DEFAULT_UPDATE_PROFILE_PICS
         _logger.info(f"Updating profile pic: ({partner.id}) of images {images}")

@@ -38,14 +38,16 @@ class TestBasePluginExtra(HttpCase):
 
         # Create parent and contact partner
         parent = self.env["res.partner"].create({"name": "Parent A", "phone": "555"})
-        contact = self.env["res.partner"].create(
+        self.env["res.partner"].create(
             {"name": "whatsapp", "phone": "555", "parent_id": parent.id}
         )
 
         # Mock identifier
         self.plugin.get_contact_identifier = lambda payload: "555"
 
-        result = self.plugin.get_or_create_partner(payload={}, update_profile_picture=False, create_contact=False)
+        result = self.plugin.get_or_create_partner(
+            payload={}, update_profile_picture=False, create_contact=False
+        )
         # Should return the parent partner record
         self.assertEqual(result.id, parent.id)
 
@@ -57,6 +59,7 @@ class TestBasePluginExtra(HttpCase):
                 self.id = 99999
 
             def write(self, vals):
+                # pylint: disable=method-required-super
                 raise Exception("write failed")
 
         bad = BadPartner()
@@ -72,7 +75,11 @@ class TestBasePluginExtra(HttpCase):
         contact_identifier = "999888777"
         parent_partner = self.env["res.partner"].create({"name": "PARENT"})
         partner = self.env["res.partner"].create(
-            {"name": self.plugin.connector.partner_contact_name or "whatsapp", "parent_id": parent_partner.id, "phone": contact_identifier}
+            {
+                "name": self.plugin.connector.partner_contact_name or "whatsapp",
+                "parent_id": parent_partner.id,
+                "phone": contact_identifier,
+            }
         )
 
         # Create an archived channel with a membership for the parent
@@ -94,6 +101,12 @@ class TestBasePluginExtra(HttpCase):
 
         new_channel = self.plugin.get_or_create_channel(partner, {})
 
-        self.assertNotEqual(new_channel.id, archived_channel.id, "Should create a new channel when archived and not reopening")
+        self.assertNotEqual(
+            new_channel.id,
+            archived_channel.id,
+            "Should create a new channel when archived and not reopening",
+        )
         self.assertEqual(new_channel.discuss_hub_connector.id, self.connector.id)
-        self.assertEqual(new_channel.discuss_hub_outgoing_destination, contact_identifier)
+        self.assertEqual(
+            new_channel.discuss_hub_outgoing_destination, contact_identifier
+        )
