@@ -144,7 +144,8 @@ class Plugin(PluginBase):
                 if qrcode_base64:
                     status = "qr_code"
                     qrcode = qrcode_base64
-                status = query.json().get("instance", {}).get("state", "closed")
+                else:
+                    status = query.json().get("instance", {}).get("state", "closed")
         except requests.RequestException as e:
             # Log specific error type for better troubleshooting
             error_type = type(e).__name__
