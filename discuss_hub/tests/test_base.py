@@ -4,7 +4,7 @@ This test suite covers the base plugin functionality including:
 - Plugin initialization and basic properties
 - NotImplementedError for abstract methods
 - Partner creation and retrieval logic
-- Channel creation and retrieval logic  
+- Channel creation and retrieval logic
 - Profile picture update functionality
 - Edge cases and error handling
 """
@@ -37,20 +37,20 @@ class TestBasePlugin(HttpCase):
             }
         )
         cls.plugin = cls.connector.get_plugin()
-        
+
         # Sample base64 image for testing (1x1 pixel PNG)
         cls.sample_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4"
             "//8/AAX+Av7czFnnAAAAAElFTkSuQmCC"
         )
-        
+
     def _create_test_partner(self, name="Test Partner", phone=None):
         """Helper method to create a test partner with optional contact."""
         partner_vals = {"name": name}
         if phone:
             partner_vals["phone"] = phone
         return self.env["res.partner"].create(partner_vals)
-    
+
     def _create_test_contact_partner(self, parent, phone):
         """Helper method to create a contact partner."""
         return self.env["res.partner"].create(
@@ -61,7 +61,6 @@ class TestBasePlugin(HttpCase):
             }
         )
 
-    
     # ===================================================================
     # BASIC PLUGIN TESTS
     # ===================================================================
@@ -91,9 +90,7 @@ class TestBasePlugin(HttpCase):
 
     def test_plugin_name(self):
         """Test the name property of the plugin."""
-        self.assertEqual(
-            self.plugin.name, "base", "Base plugin name should be 'base'"
-        )
+        self.assertEqual(self.plugin.name, "base", "Base plugin name should be 'base'")
 
     # ===================================================================
     # NOT IMPLEMENTED METHODS TESTS
@@ -116,10 +113,11 @@ class TestBasePlugin(HttpCase):
             self.plugin.get_status()
 
     def test_get_contact_identifier_not_implemented(self):
-        """Test that get_contact_identifier raises NotImplementedError in base plugin."""
+        """Test get_contact_identifier raises NotImplementedError."""
         with self.assertRaises(
             NotImplementedError,
-            msg="Base plugin should raise NotImplementedError for get_contact_identifier",
+            msg="Base plugin should raise NotImplementedError for "
+            "get_contact_identifier",
         ):
             self.plugin.get_contact_identifier(payload={"name": "test"})
 
@@ -228,11 +226,10 @@ class TestBasePlugin(HttpCase):
             "Should return False when no partner exists and create_contact is False",
         )
 
-
     def test_get_or_create_partner_existing(self):
         """Test retrieving an existing partner."""
         test_phone = "+5511999887766"
-        
+
         # Create an existing parent partner
         parent_partner = self._create_test_partner(
             name="Existing Parent Partner", phone=test_phone
@@ -262,14 +259,12 @@ class TestBasePlugin(HttpCase):
         )
 
     def test_get_or_create_partner_returns_parent_when_no_create(self):
-        """Test that get_or_create_partner returns parent partner when create_contact=False."""
+        """Test get_or_create_partner returns parent when no create."""
         test_phone = "+5511888776655"
-        
+
         # Create existing partners
-        parent_partner = self._create_test_partner(
-            name="Test Parent", phone=test_phone
-        )
-        partner_contact = self._create_test_contact_partner(parent_partner, test_phone)
+        parent_partner = self._create_test_partner(name="Test Parent", phone=test_phone)
+        self._create_test_contact_partner(parent_partner, test_phone)
 
         # Mock methods
         self.plugin.get_contact_identifier = lambda payload: test_phone
@@ -298,7 +293,7 @@ class TestBasePlugin(HttpCase):
 
         # Test with default image fields
         result = self.plugin.update_profile_picture(test_partner, self.sample_image)
-        
+
         self.assertTrue(result, "Profile picture update should succeed")
         sample_image_bytes = self.sample_image.encode("utf-8")
         self.assertEqual(
@@ -321,7 +316,7 @@ class TestBasePlugin(HttpCase):
         result = self.plugin.update_profile_picture(
             test_partner, self.sample_image, images=custom_fields
         )
-        
+
         self.assertTrue(
             result, "Profile picture update with custom fields should succeed"
         )
@@ -339,17 +334,14 @@ class TestBasePlugin(HttpCase):
         # Test with invalid image data
         invalid_image = "not-a-valid-base64-image"
         result = self.plugin.update_profile_picture(test_partner, invalid_image)
-        
-        self.assertFalse(
-            result, "Profile picture update with invalid data should fail"
-        )
 
+        self.assertFalse(result, "Profile picture update with invalid data should fail")
 
     def test_get_or_create_partner_with_profile_picture_update(self):
         """Test get_or_create_partner with profile picture update enabled."""
         test_phone = "+5511777665544"
         test_name = "Profile Update Partner"
-        
+
         # Mock methods
         self.plugin.get_contact_identifier = lambda p: test_phone
         self.plugin.get_contact_name = lambda p: test_name
@@ -363,10 +355,8 @@ class TestBasePlugin(HttpCase):
 
         # Verify the partner was created
         self.assertEqual(partner.phone, test_phone, "Phone should match")
-        self.assertEqual(
-            partner.parent_id.name, test_name, "Parent name should match"
-        )
-        
+        self.assertEqual(partner.parent_id.name, test_name, "Parent name should match")
+
         # Verify profile picture was set
         sample_image_bytes = self.sample_image.encode("utf-8")
         self.assertEqual(
@@ -387,17 +377,17 @@ class TestBasePlugin(HttpCase):
 
         test_phone = "+5511666554433"
         test_name = "Always Update Partner"
-        
+
         # Old image (different from sample_image) - 1x1 pixel red PNG
         old_image = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVQI12P4"
-            "z8DwHwAFBQIB6OfH+gAAAABJRU5ErkJggg=="
-        ).encode("utf-8")
-        
+            b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVQI12P4"
+            b"z8DwHwAFBQIB6OfH+gAAAABJRU5ErkJggg=="
+        )
+
         # Create existing partners with profile pictures
         parent_partner = self._create_test_partner(name=test_name, phone=test_phone)
         parent_partner.image_128 = old_image
-        
+
         partner_contact = self._create_test_contact_partner(parent_partner, test_phone)
         partner_contact.image_128 = old_image
 
@@ -418,7 +408,7 @@ class TestBasePlugin(HttpCase):
             partner_contact.id,
             "Should return the existing partner",
         )
-        
+
         # Verify profile picture was updated even though it already existed
         sample_image_bytes = self.sample_image.encode("utf-8")
         self.assertEqual(
@@ -433,22 +423,22 @@ class TestBasePlugin(HttpCase):
         )
 
     def test_get_or_create_partner_skip_profile_update_when_exists(self):
-        """Test that profile picture is not updated when it exists and always_update is False."""
+        """Test profile picture not updated when exists and no always_update."""
         self.connector.always_update_profile_picture = False
-        
+
         test_phone = "+5511555443322"
         # Use a valid base64 image (2x2 pixel PNG)
         old_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVQI12P4"
             "//8/AwMDMxADABUCAv8Jne1tAAAAAElFTkSuQmCC"
         )
-        
+
         # Create existing partner with image
         parent_partner = self._create_test_partner(
             name="Has Image Partner", phone=test_phone
         )
         parent_partner.image_128 = old_image
-        
+
         partner_contact = self._create_test_contact_partner(parent_partner, test_phone)
         partner_contact.image_128 = old_image
 
@@ -466,7 +456,8 @@ class TestBasePlugin(HttpCase):
         self.assertEqual(
             result_partner.image_128,
             old_image.encode("utf-8"),
-            "Profile picture should not be updated when it exists and always_update is False",
+            "Profile picture should not be updated when it exists and "
+            "always_update is False",
         )
 
     # ===================================================================
@@ -477,7 +468,7 @@ class TestBasePlugin(HttpCase):
         """Test creating a new channel when none exists."""
         contact_identifier = "+5511444332211"
         channel_name = f"WhatsApp: Test <{contact_identifier}>"
-        
+
         # Create test partner
         parent_partner = self._create_test_partner(name="Channel Test Parent")
         partner = self._create_test_contact_partner(parent_partner, contact_identifier)
@@ -489,9 +480,7 @@ class TestBasePlugin(HttpCase):
 
         # Mock connector method using patch
         with patch.object(
-            type(self.connector), 
-            'get_initial_routed_partners', 
-            return_value=[]
+            type(self.connector), "get_initial_routed_partners", return_value=[]
         ):
             # Call the method
             channel = self.plugin.get_or_create_channel(partner, {})
@@ -516,12 +505,11 @@ class TestBasePlugin(HttpCase):
             "Parent partner should be a channel member",
         )
 
-
     def test_get_or_create_channel_existing_active(self):
         """Test get_or_create_channel when an active channel already exists."""
         contact_identifier = "+5511333221100"
         channel_name = f"WhatsApp: Existing <{contact_identifier}>"
-        
+
         # Create test partner
         parent_partner = self._create_test_partner(name="Existing Channel Parent")
         partner = self._create_test_contact_partner(parent_partner, contact_identifier)
@@ -562,11 +550,11 @@ class TestBasePlugin(HttpCase):
 
         contact_identifier = "+5511222110099"
         channel_name = f"WhatsApp: Archived <{contact_identifier}>"
-        
+
         # Create test partners
         parent_partner = self._create_test_partner(name="Archived Channel Parent")
         partner = self._create_test_contact_partner(parent_partner, contact_identifier)
-        
+
         # Create agent partner for routing
         agent_partner = self._create_test_partner(name="Agent Partner")
 
@@ -590,9 +578,9 @@ class TestBasePlugin(HttpCase):
 
         # Mock connector method using patch
         with patch.object(
-            type(self.connector), 
-            'get_initial_routed_partners', 
-            return_value=[agent_partner]
+            type(self.connector),
+            "get_initial_routed_partners",
+            return_value=[agent_partner],
         ):
             # Call the method
             channel = self.plugin.get_or_create_channel(partner, {})
@@ -617,7 +605,7 @@ class TestBasePlugin(HttpCase):
 
         contact_identifier = "+5511111009988"
         channel_name = f"WhatsApp: No Reopen <{contact_identifier}>"
-        
+
         # Create test partner
         parent_partner = self._create_test_partner(name="No Reopen Parent")
         partner = self._create_test_contact_partner(parent_partner, contact_identifier)
@@ -641,9 +629,7 @@ class TestBasePlugin(HttpCase):
 
         # Mock connector method using patch
         with patch.object(
-            type(self.connector), 
-            'get_initial_routed_partners', 
-            return_value=[]
+            type(self.connector), "get_initial_routed_partners", return_value=[]
         ):
             # Call the method
             channel = self.plugin.get_or_create_channel(partner, {})
@@ -655,14 +641,12 @@ class TestBasePlugin(HttpCase):
             "Should create a new channel when reopen is disabled",
         )
         self.assertTrue(channel.active, "New channel should be active")
-        self.assertFalse(
-            archived_channel.active, "Old channel should remain archived"
-        )
+        self.assertFalse(archived_channel.active, "Old channel should remain archived")
 
     def test_get_or_create_channel_multiple_memberships(self):
         """Test that get_or_create_channel returns the most recent active channel."""
         contact_identifier = "+5511000998877"
-        
+
         # Create test partner
         parent_partner = self._create_test_partner(name="Multi Channel Parent")
         partner = self._create_test_contact_partner(parent_partner, contact_identifier)
@@ -678,7 +662,7 @@ class TestBasePlugin(HttpCase):
             }
         )
         old_channel.add_members([parent_partner.id])
-        
+
         # Create newer channel
         new_channel = self.env["discuss.channel"].create(
             {
@@ -711,9 +695,9 @@ class TestBasePlugin(HttpCase):
     # ===================================================================
 
     def test_get_or_create_partner_with_fallback_name(self):
-        """Test that contact identifier is used as fallback when name is not provided."""
+        """Test contact identifier used as fallback when no name."""
         test_phone = "+5510009988776"
-        
+
         # Mock methods - get_contact_name returns None
         self.plugin.get_contact_identifier = lambda payload: test_phone
         self.plugin.get_contact_name = lambda payload: None
@@ -734,19 +718,17 @@ class TestBasePlugin(HttpCase):
     def test_update_profile_picture_empty_string(self):
         """Test that update_profile_picture handles empty string gracefully."""
         test_partner = self._create_test_partner(name="Empty String Test")
-        
+
         result = self.plugin.update_profile_picture(test_partner, "")
-        
+
         # Should fail gracefully (likely raises exception internally)
-        self.assertFalse(
-            result, "Update with empty string should fail gracefully"
-        )
+        self.assertFalse(result, "Update with empty string should fail gracefully")
 
     def test_get_or_create_channel_with_image_from_partner(self):
         """Test that new channel inherits image from partner."""
         contact_identifier = "+5519998887776"
         channel_name = f"WhatsApp: Image Test <{contact_identifier}>"
-        
+
         # Create partner with image
         parent_partner = self._create_test_partner(name="Image Parent")
         partner = self._create_test_contact_partner(parent_partner, contact_identifier)
@@ -759,9 +741,7 @@ class TestBasePlugin(HttpCase):
 
         # Mock connector method using patch
         with patch.object(
-            type(self.connector), 
-            'get_initial_routed_partners', 
-            return_value=[]
+            type(self.connector), "get_initial_routed_partners", return_value=[]
         ):
             # Create channel
             channel = self.plugin.get_or_create_channel(partner, {})
@@ -772,4 +752,3 @@ class TestBasePlugin(HttpCase):
             partner.image_128,
             "Channel should inherit image from partner",
         )
-
