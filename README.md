@@ -9,7 +9,20 @@
 
 # Discuss Hub
 
-Integrate third party message channels into Odoo's discuss
+Integrate third-party message channels into Odoo's Discuss system.
+
+## 📚 Documentation
+
+**Complete documentation is available in multiple languages:**
+
+- 🇧🇷 **[Documentação em Português](docs/pt-br/README.md)** - Full documentation in Brazilian Portuguese
+- 🇺🇸 **[English Documentation](docs/en/README.md)** - Complete English documentation
+- 📊 **[Architecture & Diagrams](docs/assets/diagrams.md)** - Technical architecture diagrams
+
+**Quick Access:**
+- [🔥 Evolution Plugin Guide](docs/pt-br/Evolution%20Plugin.md) | [English](docs/en/Evolution%20Plugin.md)
+- [🛠️ Plugin Development](docs/pt-br/Plugin%20Development.md) | [English](docs/en/Plugin%20Development.md)
+- [🔧 Troubleshooting](docs/pt-br/Troubleshooting.md)
 
 [Deepwiki tech docs](https://deepwiki.com/discusshub/discuss_hub)
 
@@ -44,30 +57,28 @@ This part will be replaced when running the oca-gen-addons-table script from OCA
 [//]: # (end addons)
 
 <!-- prettier-ignore-end -->
-
 ## Licenses
 
 This repository is licensed under [AGPL-3.0](LICENSE).
 
-However, each module can have a totally different license, as long as they adhere to the Discuss Hub Community
-policy. Consult each module's `__manifest__.py` file, which contains a `license` key
-that explains its license.
+However, each module may have a different license, as long as it follows the Discuss Hub Community
+policy. Check each module's `__manifest__.py` file — the `license` key there explains the module's license.
 
 ----
 <!-- /!\ Non OCA Context : Set here the full description of your organization. -->
 ## How to Configure
 
-First, run the compose.yaml in this repo.
+First, run the `compose.yaml` file included in this repository.
 
-It has everything needed. It will sping Odoo, and in the demo data, 
-it will have a new connector.
+It contains all required services. It will start Odoo and, in the demo data,
+create a sample connector.
 
-However, we need to create a new instance to connector with it.
+You still need to create an instance in Evolution for the connector to use.
 
-This can be easily done with (note, you may need to change apikey according
- to the one that is in Evolution.
+This can be done via a simple HTTP request (you may need to update the `apikey`
+to match the one configured in your Evolution instance).
 
- Here how to create a new instance in Evoltuion that will work just fine:
+Here is an example request to create a working instance in Evolution:
 
 ```bash
 curl --request POST \
@@ -79,36 +90,37 @@ curl --request POST \
     "qrcode": true,
     "integration": "WHATSAPP-BAILEYS",
     "webhook": {
-			"url": "http://odoo:8069/discuss_hub/connector/76320171-94ec-455e-89c8-42995918fec6",
-			"base64": true,
-         "events": [
-             "APPLICATION_STARTUP",
-             "QRCODE_UPDATED",
-             "MESSAGES_SET",
-             "MESSAGES_UPSERT",
-             "MESSAGES_UPDATE",
-             "MESSAGES_DELETE",
-             "SEND_MESSAGE",
-             "CONTACTS_SET",
-            "CONTACTS_UPSERT",
-             "CONTACTS_UPDATE",
-             "PRESENCE_UPDATE",
-             "CHATS_SET",
-             "CHATS_UPSERT",
-             "CHATS_UPDATE",
-             "CHATS_DELETE",
-             "GROUPS_UPSERT",
-             "GROUP_UPDATE",
-             "GROUP_PARTICIPANTS_UPDATE",
-             "CONNECTION_UPDATE",
-             "LABELS_EDIT",
-             "LABELS_ASSOCIATION",
-             "CALL",
-             "TYPEBOT_START",
-             "TYPEBOT_CHANGE_STATUS"
-         ]
-     }
-}'
+      "url": "http://odoo:8069/discuss_hub/connector/76320171-94ec-455e-89c8-42995918fec6",
+      "base64": true,
+      "events": [
+        "APPLICATION_STARTUP",
+        "QRCODE_UPDATED",
+        "MESSAGES_SET",
+        "MESSAGES_UPSERT",
+        "MESSAGES_UPDATE",
+        "MESSAGES_DELETE",
+        "SEND_MESSAGE",
+        "CONTACTS_SET",
+        "CONTACTS_UPSERT",
+        "CONTACTS_UPDATE",
+        "PRESENCE_UPDATE",
+        "CHATS_SET",
+        "CHATS_UPSERT",
+        "CHATS_UPDATE",
+        "CHATS_DELETE",
+        "GROUPS_UPSERT",
+        "GROUP_UPDATE",
+        "GROUP_PARTICIPANTS_UPDATE",
+        "CONNECTION_UPDATE",
+        "LABELS_EDIT",
+        "LABELS_ASSOCIATION",
+        "CALL",
+        "TYPEBOT_START",
+        "TYPEBOT_CHANGE_STATUS"
+      ]
+    }
+  }'
 ```
 
+Thanks to: [ngrok](https://ngrok.com/), [Comunidade Mundo Automatik](https://www.youtube.com/@mundoautomatik)
 Thanks to: [ngrok](https://ngrok.com/), [Comunidade Mundo Automatik](https://www.youtube.com/@mundoautomatik)

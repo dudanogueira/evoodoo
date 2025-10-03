@@ -1,0 +1,70 @@
+# ==============================================
+# PORTAINER - DOCKER SWARM MONITORING (OPCIONAL)
+# ==============================================
+# Este arquivo adiciona Portainer para interface gráfica do Swarm
+# Para usar: docker stack deploy -c portainer.yml portainer
+
+version: "3.8"
+
+services:
+  agent:
+    image: portainer/agent:2.19.4
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    networks:
+      - agent_network
+    deploy:
+      mode: global
+      placement:
+        constraints: [node.platform.os == linux]
+
+  portainer:
+    image: portainer/portainer-ce:2.19.4
+    command: -H tcp://tasks.agent:9001 --tlsskipverify
+    ports:
+      - "9443:9443"
+      - "9000:9000"
+      - "8000:8000"
+    volumes:
+      - portainer_data:/data
+    networks:
+      - agent_network
+      - traefik
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik
+
+        # HTTP
+        - traefik.http.routers.portainer-web.rule=Host(`portainer.${DOMAIN:-localhost}`)
+        - traefik.http.routers.portainer-web.entrypoints=web
+        - traefik.http.routers.portainer-web.middlewares=portainer-redirect-ssl
+
+        # HTTPS
+        - traefik.http.routers.portainer-websecure.rule=Host(`portainer.${DOMAIN:-localhost}`)
+        - traefik.http.routers.portainer-websecure.entrypoints=websecure
+        - traefik.http.routers.portainer-websecure.tls=true
+        - traefik.http.routers.portainer-websecure.tls.certresolver=letsencrypt
+
+        # Service
+        - traefik.http.services.portainer.loadbalancer.server.port=9000
+
+        # Middleware
+        - traefik.http.middlewares.portainer-redirect-ssl.redirectscheme.scheme=https
+        - traefik.http.middlewares.portainer-redirect-ssl.redirectscheme.permanent=true
+
+networks:
+  agent_network:
+    driver: overlay
+    attachable: true
+  traefik:
+    external: true
+
+volumes:
+  portainer_data:
+    driver: local

@@ -1,0 +1,88 @@
+# ==============================================
+# TRAEFIK DYNAMIC CONFIGURATION
+# ==============================================
+# Este arquivo pode ser usado para configurações dinâmicas do Traefik
+# Para usar: monte este arquivo em /etc/traefik/dynamic/ no container do Traefik
+
+http:
+  middlewares:
+    # Security headers
+    security-headers:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - OPTIONS
+          - PUT
+          - POST
+          - DELETE
+          - PATCH
+        accessControlMaxAge: 100
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        referrerPolicy: "same-origin"
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Robots-Tag: "noindex,nofollow,nosnippet,noarchive,notranslate,noimageindex"
+          server: ""
+        sslProxyHeaders:
+          X-Forwarded-Proto: "https"
+
+    # Rate limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 60s
+
+    # IP whitelist for admin areas
+    admin-auth:
+      ipWhiteList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+    # Basic Auth (generate with: htpasswd -nb admin password)
+    basic-auth:
+      basicAuth:
+        users:
+          - "admin:$2y$10$2b2cu/PdTpYW.paOKBOEAO4H2qg.T8HH1.QdCm7WWVer7MBAZvUQa" # admin:admin
+
+    # Gzip compression
+    compression:
+      compress: {}
+
+    # CORS
+    cors:
+      headers:
+        accessControlAllowOriginList:
+          - "*"
+        accessControlAllowHeaders:
+          - "*"
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+          - "OPTIONS"
+
+# TLS Configuration
+tls:
+  options:
+    default:
+      sslVersions:
+        - "TLSv1.2"
+        - "TLSv1.3"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_RSA_WITH_AES_128_GCM_SHA256"
+      curvePreferences:
+        - "CurveP521"
+        - "CurveP384"
+      minVersion: "VersionTLS12"

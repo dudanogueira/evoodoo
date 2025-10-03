@@ -1,8 +1,7 @@
-# import unittest
-# from unittest.mock import patch, MagicMock
-# from odoo.tests import tagged
-# from odoo.tests.common import TransactionCase
+from unittest.mock import patch
 
+from odoo.tests import tagged
+from odoo.tests.common import TransactionCase
 
 # @tagged("discuss_hub", "connector")
 # class TestDiscussHubConnector(TransactionCase):
@@ -149,33 +148,49 @@
 #         self.connector.logout_instance()
 #         mock_logout.assert_called_once()
 
-# @tagged("discuss_hub", "connector", "integration")
-# class TestDiscussHubConnectorIntegration(TransactionCase):
-#     @classmethod
-#     def setUpClass(cls):
-#         super().setUpClass()
-#         # Create a test connector with evolution plugin
-#         cls.connector = cls.env["discuss_hub.connector"].create({
-#             "name": "test_evolution",
-#             "type": "evolution",
-#             "enabled": True,
-#             "uuid": "test-uuid-5678",
-#             "url": "http://evolution:8080",
-#             "api_key": "test_api_key",
-#             "partner_contact_field": "phone",
-#         })
 
-#     # def test_action_open_start(self):
-#     #     """Test the action_open_start method"""
-#     #     with patch.object(self.connector, 'get_status') as mock_status:
-#     #         mock_status.return_value = {
-#     #             "status": "closed",
-#     #             "qrcode": "data:image/png;base64,abc123"
-#     #         }
+@tagged("discuss_hub", "connector", "integration")
+class TestDiscussHubConnectorIntegration(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Create a test connector with evolution plugin
+        cls.connector = cls.env["discuss_hub.connector"].create(
+            {
+                "name": "test_evolution",
+                "type": "evolution",
+                "enabled": True,
+                "uuid": "test-uuid-5678",
+                "url": "http://evolution:8080",
+                "api_key": "test_api_key",
+                "partner_contact_field": "phone",
+            }
+        )
 
-#     #         result = self.connector.action_open_start()
+    def test_action_open_start(self):
+        """Test the action_open_start method which opens the connector status dialog"""
+        with patch.object(self.connector, "get_status") as mock_status:
+            # Prepare mock data
+            mock_status.return_value = {
+                "status": "closed",
+                "qrcode": "data:image/png;base64,abc123",
+                "success": True,
+                "plugin_name": "evolution",
+                "connector": str(self.connector),
+            }
 
-#     #         self.assertEqual(result["type"], "ir.actions.act_window")
-#     #         self.assertEqual(result["res_model"], "discuss_hub.connector.status")
-#     #         self.assertTrue("default_html_content" in result["context"])
+            # Call the method to be tested
+            result = self.connector.action_open_start()
+
+            # Verify the result
+            self.assertEqual(result["type"], "ir.actions.act_window")
+            self.assertEqual(result["res_model"], "discuss_hub.connector.status")
+            self.assertTrue("default_html_content" in result["context"])
+
+            # Verify the content contains the expected status and QR code
+            html_content = result["context"]["default_html_content"]
+            self.assertIn("Status: closed", html_content)
+            self.assertIn("data:image/png;base64,abc123", html_content)
+
+
 #     #         self.assertTrue("Connector Status" in result["name"])

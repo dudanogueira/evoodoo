@@ -26,10 +26,33 @@ class Plugin(PluginBase):
         self.session = self.get_requests_session()
         self.evolution_url = self.get_evolution_url()
 
-    # MANAGEMENT / HELPERS
+        # MANAGEMENT / HELPERS
 
     def get_status(self):
-        """Get the status of the connector"""
+        """Get the status of the Evolution API connector instance.
+
+        This method queries the Evolution API to check the current status of the
+        WhatsApp connection. It handles various response scenarios including:
+        - Instance not found (404): Attempts to create a new instance
+          automatically
+        - Authentication failure (401): Returns unauthorized status
+        - Success (200): Processes response and may include a QR code
+          for authentication
+
+        Returns:
+            dict: A status dictionary containing:
+                - status (str): Current connection state. Examples: 'open',
+                  'closed', 'not_found'
+                - qrcode (str, optional): Base64 QR code for WhatsApp
+                  authentication if needed
+                - success (bool): Whether the status request was successful
+                - plugin_name (str): Name of the plugin ('evolution')
+                - connector (str): String representation of the connector
+
+        Raises:
+            No exceptions are propagated: errors are handled and logged
+            internally.
+        """
         url = f"{self.evolution_url}/instance/connect/{self.connector.name}"
         qrcode = None
         try:
@@ -117,18 +140,43 @@ class Plugin(PluginBase):
                 status = "unauthorized"
 
             if query.status_code == 200:
-                qrcode_base64 = query.json().get("base64", None)
+                qrcode_base64 = query.json().get("base64")
                 if qrcode_base64:
                     status = "qr_code"
                     qrcode = qrcode_base64
                 status = query.json().get("instance", {}).get("state", "closed")
         except requests.RequestException as e:
-            _logger.error(f"Error getting status: {str(e)} connector {self}")
+            # Log specific error type for better troubleshooting
+            error_type = type(e).__name__
+            _logger.error(
+                "Error getting status: %s: %s for connector %s",
+                error_type,
+                str(e),
+                self.connector.name,
+            )
             status = "error"
+        except ValueError as e:
+            # Handle JSON parsing errors separately
+            _logger.error(
+                "Invalid JSON response from Evolution API: %s for connector %s",
+                str(e),
+                self.connector.name,
+            )
+            status = "error"
+        except Exception as e:
+            # Catch-all for unexpected errors
+            _logger.error(
+                "Unexpected error in get_status: %s: %s for connector %s",
+                type(e).__name__,
+                str(e),
+                self.connector.name,
+            )
+            status = "error"
+
         return {
             "status": status,
             "qrcode": qrcode,
-            "sucess": True,
+            "success": True,  # Fixed typo: 'sucess' -> 'success'
             "plugin_name": self.plugin_name,
             "connector": str(self.connector),
         }
@@ -367,7 +415,8 @@ class Plugin(PluginBase):
             contacts_request = self.session.post(url)
             if contacts_request.status_code == 200:
                 self.connector.evolution_contact_queue = contacts_request.json()
-                self.connector.env.cr.commit()
+                # Não usar commit direto - o Odoo gerencia as transações automaticamente
+                # self.connector.env.cr.commit()
 
         for contact in self.connector.evolution_contact_queue:
             # get or create partner
@@ -378,8 +427,8 @@ class Plugin(PluginBase):
             current_state = self.connector.evolution_contact_queue
             current_state.remove(contact)
             self.connector.evolution_contact_queue = current_state
-            # force commit
-            self.connector.env.cr.commit()
+            # Não usar commit direto - o Odoo gerencia as transações automaticamente
+            # self.connector.env.cr.commit()
         return True
 
     # OUTCOMING

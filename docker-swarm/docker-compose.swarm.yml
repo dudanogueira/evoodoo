@@ -1,0 +1,312 @@
+version: "3.8"
+
+networks:
+  traefik:
+    external: true
+  internal:
+    driver: overlay
+    attachable: true
+
+volumes:
+  db_data:
+    driver: local
+  odoo_data:
+    driver: local
+  odoo_conf:
+    driver: local
+  evolution_instances:
+    driver: local
+  redis_data:
+    driver: local
+  traefik_data:
+    driver: local
+
+services:
+  traefik:
+    image: traefik:v3.1
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.swarmmode=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=traefik
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --log.level=INFO
+      - --accesslog=true
+    ports:
+      - target: 80
+        published: 80
+        mode: host
+      - target: 443
+        published: 443
+        mode: host
+      - target: 8080
+        published: 8080
+        mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_data:/letsencrypt
+    networks:
+      - traefik
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-localhost}`)
+        - traefik.http.routers.traefik.tls=true
+        - traefik.http.routers.traefik.tls.certresolver=letsencrypt
+        - traefik.http.services.traefik.loadbalancer.server.port=8080
+        - traefik.docker.network=traefik
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.db == true
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-postgres}",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  redis:
+    image: redis:7-alpine
+    command:
+      redis-server --port 6379 --appendonly yes --maxmemory 256mb --maxmemory-policy
+      allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  odoo:
+    image: discusshub/discuss_hub:latest
+    environment:
+      ODOO_RC: /etc/odoo/odoo.conf
+      HOST: db
+      USER: ${POSTGRES_USER:-admin}
+      PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      ADMIN_PASSWORD: ${ODOO_ADMIN_PASSWORD:-admin}
+      SMTP_SERVER: mailpit
+      SMTP_PORT: 1025
+      DISCUSS_HUB_INTERNAL_HOST: ${DISCUSS_HUB_INTERNAL_HOST:-http://odoo.${DOMAIN:-localhost}}
+      DISCUSS_HUB_EVOLUTION_URL: ${DISCUSS_HUB_EVOLUTION_URL:-http://evolution.${DOMAIN:-localhost}}
+      DISCUSS_HUB_EVOLUTION_APIKEY: ${DISCUSS_HUB_EVOLUTION_APIKEY:-1369429683C4C977415CAAFCCE10F7D57E11}
+      ODOO_SESSION_REDIS: 1
+      ODOO_SESSION_REDIS_HOST: redis
+      ODOO_SESSION_REDIS_PREFIX: discusshub-odoo-swarm
+      ODOO_SESSION_REDIS_SSL: false
+    volumes:
+      - odoo_conf:/etc/odoo
+      - odoo_data:/var/lib/odoo
+    networks:
+      - traefik
+      - internal
+    depends_on:
+      - db
+      - redis
+    deploy:
+      replicas: ${ODOO_REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik
+
+        # HTTP Router
+        - traefik.http.routers.odoo-web.rule=Host(`odoo.${DOMAIN:-localhost}`) ||
+          Host(`${DOMAIN:-localhost}`)
+        - traefik.http.routers.odoo-web.entrypoints=web
+        - traefik.http.routers.odoo-web.middlewares=odoo-redirect-ssl
+
+        # HTTPS Router
+        - traefik.http.routers.odoo-websecure.rule=Host(`odoo.${DOMAIN:-localhost}`) ||
+          Host(`${DOMAIN:-localhost}`)
+        - traefik.http.routers.odoo-websecure.entrypoints=websecure
+        - traefik.http.routers.odoo-websecure.tls=true
+        - traefik.http.routers.odoo-websecure.tls.certresolver=letsencrypt
+
+        # Service
+        - traefik.http.services.odoo.loadbalancer.server.port=8069
+        - traefik.http.services.odoo.loadbalancer.sticky.cookie=true
+        - traefik.http.services.odoo.loadbalancer.sticky.cookie.name=odoo-server
+
+        # Middlewares
+        - traefik.http.middlewares.odoo-redirect-ssl.redirectscheme.scheme=https
+        - traefik.http.middlewares.odoo-redirect-ssl.redirectscheme.permanent=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8069/web/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 300s
+
+  evolution:
+    image: atendai/evolution-api:latest
+    environment:
+      SERVER_URL: ${EVOLUTION_SERVER_URL:-https://evolution.${DOMAIN:-localhost}}
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin}@db:5432/${POSTGRES_DB:-postgres}?schema=evolution
+      DATABASE_SAVE_DATA_INSTANCE: true
+      DATABASE_SAVE_DATA_NEW_MESSAGE: true
+      DATABASE_SAVE_MESSAGE_UPDATE: true
+      DATABASE_SAVE_DATA_CONTACTS: true
+      DATABASE_SAVE_DATA_CHATS: true
+      DATABASE_SAVE_DATA_LABELS: true
+      DATABASE_SAVE_DATA_HISTORIC: true
+      DATABASE_SAVE_IS_ON_WHATSAPP: true
+      DATABASE_SAVE_IS_ON_WHATSAPP_DAYS: 14
+      DATABASE_DELETE_MESSAGE: true
+      CACHE_REDIS_ENABLED: true
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_TTL: 604800
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: false
+      CACHE_LOCAL_ENABLED: false
+      CONFIG_SESSION_PHONE_CLIENT: Conexao Azul
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      CONFIG_SESSION_PHONE_VERSION: 2.3000.1020885143
+      AUTHENTICATION_API_KEY: ${DISCUSS_HUB_EVOLUTION_APIKEY:-1369429683C4C977415CAAFCCE10F7D57E11}
+      WA_BUSINESS_TOKEN_WEBHOOK: evolution
+      WA_BUSINESS_URL: https://graph.facebook.com
+      WA_BUSINESS_VERSION: v21.0
+      WA_BUSINESS_LANGUAGE: pt_BR
+      OPENAI_ENABLED: ${OPENAI_ENABLED:-true}
+      WEBHOOK_BASE_URL: ${DISCUSS_HUB_INTERNAL_HOST:-https://odoo.${DOMAIN:-localhost}}
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - traefik
+      - internal
+    depends_on:
+      - db
+      - redis
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik
+
+        # HTTP Router
+        - traefik.http.routers.evolution-web.rule=Host(`evolution.${DOMAIN:-localhost}`)
+        - traefik.http.routers.evolution-web.entrypoints=web
+        - traefik.http.routers.evolution-web.middlewares=evolution-redirect-ssl
+
+        # HTTPS Router
+        - traefik.http.routers.evolution-websecure.rule=Host(`evolution.${DOMAIN:-localhost}`)
+        - traefik.http.routers.evolution-websecure.entrypoints=websecure
+        - traefik.http.routers.evolution-websecure.tls=true
+        - traefik.http.routers.evolution-websecure.tls.certresolver=letsencrypt
+
+        # Service
+        - traefik.http.services.evolution.loadbalancer.server.port=8080
+
+        # Middlewares
+        - traefik.http.middlewares.evolution-redirect-ssl.redirectscheme.scheme=https
+        - traefik.http.middlewares.evolution-redirect-ssl.redirectscheme.permanent=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  mailpit:
+    image: docker.io/axllent/mailpit:latest
+    networks:
+      - traefik
+      - internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik
+
+        # HTTP Router
+        - traefik.http.routers.mailpit-web.rule=Host(`mailpit.${DOMAIN:-localhost}`)
+        - traefik.http.routers.mailpit-web.entrypoints=web
+        - traefik.http.routers.mailpit-web.middlewares=mailpit-redirect-ssl
+
+        # HTTPS Router
+        - traefik.http.routers.mailpit-websecure.rule=Host(`mailpit.${DOMAIN:-localhost}`)
+        - traefik.http.routers.mailpit-websecure.entrypoints=websecure
+        - traefik.http.routers.mailpit-websecure.tls=true
+        - traefik.http.routers.mailpit-websecure.tls.certresolver=letsencrypt
+
+        # Service
+        - traefik.http.services.mailpit.loadbalancer.server.port=8025
+
+        # Middlewares
+        - traefik.http.middlewares.mailpit-redirect-ssl.redirectscheme.scheme=https
+        - traefik.http.middlewares.mailpit-redirect-ssl.redirectscheme.permanent=true
