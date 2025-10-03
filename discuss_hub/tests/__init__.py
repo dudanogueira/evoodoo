@@ -5,4 +5,5 @@ from . import (
     test_example,
     test_routing_manager,
     test_base_extra,
+    test_evolution,
 )
