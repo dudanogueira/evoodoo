@@ -33,7 +33,7 @@ RUN mv \
 RUN rm -rf /mnt/repositories
 
 # Stage 2: Final image based on official Odoo
-FROM odoo:latest
+FROM odoo:18
 
 COPY ./discuss_hub/ /mnt/extra-addons/discuss_hub
 
