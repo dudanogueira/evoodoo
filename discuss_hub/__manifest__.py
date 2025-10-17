@@ -9,7 +9,7 @@
     "application": True,
     "installable": True,
     # any module necessary for this one to work correctly
-    "depends": ["base", "mail", "base_automation", "crm"],
+    "depends": ["base", "mail", "crm"],
     # always loaded
     "data": [
         "security/security.xml",

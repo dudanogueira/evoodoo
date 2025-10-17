@@ -87,16 +87,18 @@ class DiscussHubBotManager(models.Model):
         except requests.Timeout as e:
             _logger.error(f"Timeout while sending message to bot {self.bot_url}: {e}")
             timed_out = True
+
         if request_data.status_code != 200 or timed_out or not request_data.content:
             _logger.error(f"Failed to send message to bot {self}: {request_data.text}")
             # sending default error message
-            error_message = channel.message_post(
+            channel.message_post(
                 body=self.on_error_message,
                 author_id=partner.id,
                 message_type="comment",
                 subtype_xmlid="mail.mt_comment",
             )
-            channel.discuss_hub_connector.outgo_message(channel, error_message)
+            # Note: outgo_message is automatically called by message_post() hook
+            # if the author has a system user (see discuss_channel.py)
             return True
 
         # for each message
@@ -120,7 +122,6 @@ class DiscussHubBotManager(models.Model):
                             {content_type}: {e}."""
                         )
                         pass
-
             new_message = channel.message_post(
                 body=received_message.get("text", ""),
                 author_id=partner.id,
@@ -128,7 +129,10 @@ class DiscussHubBotManager(models.Model):
                 subtype_xmlid="mail.mt_comment",
                 attachments=attachments,
             )
-            channel.discuss_hub_connector.outgo_message(channel, new_message)
+            # Note: outgo_message is automatically called by message_post() hook
+            # if the author has a system user (see discuss_channel.py)
+            _logger.info(f"Bot message created: {new_message.id}")
+        return True
 
     def typebot_get_latest_session(self, channel):
         latest_session = self.env["discuss_hub.bot_manager.session"].search(
@@ -211,7 +215,10 @@ class DiscussHubBotManager(models.Model):
         """
         message = channel.message_ids[0]
         # Simulate sending a message to the bot
-        _logger.info(f"Sending message to bot {self.bot_url}: {message} at {channel}")
+        _logger.info(
+            f"Sending message to bot({self.bot_type}) {self.bot_url}: "
+            f"{message} at {channel}"
+        )
         message_audio_base64 = None
         attachment_id = None
         if message.attachment_ids and "audio" in message.attachment_ids[0].mimetype:
@@ -219,8 +226,13 @@ class DiscussHubBotManager(models.Model):
             message_audio_base64 = message.attachment_ids[0].datas.decode("utf-8")
 
         if self.bot_type == "generic":
-            self.generic_handle(message, channel, partner)
-
+            generic_handle = self.generic_handle(message, channel, partner)
+            _logger.info(
+                f"Message to bot({self.bot_type}) {self.bot_url}: "
+                f"{message} at {channel} was sent: {generic_handle}"
+            )
+            _logger.info(f"Handling bot type {self.bot_type} for bot {self.id}")
+            return True
         if self.bot_type == "typebot":
             # Handle typebot specific logic here
             # try to get the latest session for this channel
@@ -317,32 +329,16 @@ class DiscussHubBotManager(models.Model):
                         )
                 # handle typebot markdown. first, replace \n to <br>
                 body = body.replace("\n", "<br>")
-                new_message = channel.message_post(
+                channel.message_post(
                     body=Markup(body),
                     author_id=partner.id,
                     message_type="comment",
                     subtype_xmlid="mail.mt_comment",
                     attachments=attachments,
                 )
-                channel.discuss_hub_connector.outgo_message(channel, new_message)
+                # Note: outgo_message is automatically called by message_post() hook
+                # if the author has a system user (see discuss_channel.py)
         return True
-
-    # def process_payload(self, payload):
-    #     """
-    #     Process an incoming payload from the bot.
-    #     :param payload: The payload to process.
-    #     :return: A response indicating the result of the processing.
-    #     """
-    #     _logger.info(f"Processing payload for bot manager {self.id}: {payload}")
-    #     if payload.get("action") == "forward" and payload.get("channel_id"):
-    #         # forward action at specific channel_id
-    #         if payload.get("agent"):
-    #             # Handle agent-specific logic here
-    #             pass
-    #     return {
-    #               "status": "success", "detail": "Payload processed successfully.",
-    #               "received": payload
-    #       }
 
     def process_payload(self, incoming_payload):
         """Process routing payload using DiscussHubRoutingManager"""

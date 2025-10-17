@@ -214,7 +214,7 @@ class DiscussHubConnector(models.Model):
         for connector in self:
             status = connector.get_status()
             if status:
-                print(status)
+                _logger.debug(f"Connector status: {status}")
                 connector.status = status.get("status", "not_found")
                 connector.qr_code_base64 = status.get("qr_code_base64", None)
 

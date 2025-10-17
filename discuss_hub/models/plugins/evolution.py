@@ -868,9 +868,12 @@ class Plugin(PluginBase):
         decoded_data = base64.b64decode(image_base64)
         attachments = [(caption or "image.jpg", decoded_data)]
 
+        # Determine author - use parent contact if available (consistent)
+        author = partner.parent_id.id if partner.parent_id else partner.id
+
         # Post message
         message = channel.message_post(
-            author_id=partner.id,
+            author_id=author,
             body=caption,
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
@@ -900,8 +903,8 @@ class Plugin(PluginBase):
             + ".mp4"
         )
 
-        # define the partner
-        partner = partner.parent_id if partner.parent_id else partner
+        # Determine author - use parent contact if available (consistent)
+        author = partner.parent_id.id if partner.parent_id else partner.id
 
         # Process video
         decoded_data = base64.b64decode(content_base64)
@@ -909,7 +912,7 @@ class Plugin(PluginBase):
 
         # Post message
         message = channel.message_post(
-            author_id=partner.id,
+            author_id=author,
             body=caption,
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
@@ -939,13 +942,13 @@ class Plugin(PluginBase):
         # Create attachment
         attachments = [(file_name, decoded_data)]
 
-        # define the partner
-        partner = partner.parent_id if partner.parent_id else partner
+        # Determine author - use parent contact if available (consistent)
+        author = partner.parent_id.id if partner.parent_id else partner.id
 
         # Post message
         message_text = "audio"
         message = channel.message_post(
-            author_id=partner.id,
+            author_id=author,
             body=message_text,
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
@@ -976,11 +979,13 @@ class Plugin(PluginBase):
 
         # Prepare attachments
         attachments = [("location.jpeg", decoded_data)] if decoded_data else []
-        # define the partner
-        partner = partner.parent_id if partner.parent_id else partner
+
+        # Determine author - use parent contact if available (consistent)
+        author = partner.parent_id.id if partner.parent_id else partner.id
+
         # Post message
         message = channel.message_post(
-            author_id=partner.id,
+            author_id=author,
             body=Markup(
                 f'<a href="https://maps.google.com/?q={lat},{lon}">📍{lat}, {lon}</a>'
             ),
@@ -1013,11 +1018,13 @@ class Plugin(PluginBase):
         # Process document
         decoded_data = base64.b64decode(content_base64)
         attachments = [(file_name, decoded_data)]
-        # define the partner
-        partner = partner.parent_id if partner.parent_id else partner
+
+        # Determine author - use parent contact if available (consistent)
+        author = partner.parent_id.id if partner.parent_id else partner.id
+
         # Post message
         message = channel.message_post(
-            author_id=partner.id,
+            author_id=author,
             body=caption,
             message_type="comment",
             subtype_xmlid="mail.mt_comment",

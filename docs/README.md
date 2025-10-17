@@ -3,19 +3,52 @@
 Welcome to the comprehensive documentation for **Discuss Hub** - a powerful framework
 for integrating third-party messaging channels into Odoo's Discuss system.
 
+## 🔥 Latest Updates
+
+> **🎉 New: Native Hooks Implementation** Discuss Hub has migrated from base automations
+> to native Python hooks for 5x better performance!
+>
+> - [Migration Guide (EN)](./en/Migration-BaseAutomations-to-CodeHooks.md)
+> - [Guia de Migração (PT-BR)](./pt-br/Migration-BaseAutomations-to-CodeHooks.md)
+
 ## 🌐 Language Selection
 
-### 🇧🇷 Português Brasileiro
+### 🇺🇸 English Documentation
 
-- [[pt-br/README|📖 Documentação Completa em Português]]
-- [[pt-br/Evolution Plugin|🔥 Plugin Evolution (WhatsApp)]]
-- [[pt-br/Plugin Development|🛠️ Guia de Desenvolvimento de Plugins]]
+#### Core Documentation
 
-### 🇺🇸 English
+- 📖 **[Complete Documentation](./en/README.md)** - Full guide
+- 🔥 **[Evolution Plugin](./en/Evolution%20Plugin.md)** - WhatsApp integration
 
-- [[en/README|📖 Complete English Documentation]]
-- [[en/Evolution Plugin|🔥 Evolution Plugin (WhatsApp)]]
-- [[en/Plugin Development|🛠️ Plugin Development Guide]]
+#### Migration Resources
+
+- 🔄 **[Migration Guide](./en/Migration-BaseAutomations-to-CodeHooks.md)** - Base
+  automations to hooks
+- � **[Visual Comparison](./en/Comparison-Automations-vs-Hooks.md)** - Before/after
+  analysis
+- ✅ **[Post-Migration Checklist](./en/Post-Migration-Checklist.md)** - Verification
+  steps
+- ❓ **[FAQ](./en/FAQ-Migration-Hooks.md)** - Frequently asked questions
+
+### �� Documentação em Português
+
+#### Documentação Principal
+
+- 📖 **[Documentação Completa](./pt-br/README.md)** - Guia completo
+- 🔥 **[Plugin Evolution](./pt-br/Evolution%20Plugin.md)** - Integração WhatsApp
+- 🛠️ **[Desenvolvimento de Plugins](./pt-br/Plugin%20Development.md)** - Como criar
+  plugins
+- 🐛 **[Troubleshooting](./pt-br/Troubleshooting.md)** - Resolução de problemas
+
+#### Recursos de Migração
+
+- 🔄 **[Guia de Migração](./pt-br/Migration-BaseAutomations-to-CodeHooks.md)** -
+  Automações para hooks
+- 📊 **[Comparação Visual](./pt-br/Comparison-Automations-vs-Hooks.md)** - Análise
+  antes/depois
+- ✅ **[Checklist Pós-Migração](./pt-br/Post-Migration-Checklist.md)** - Passos de
+  verificação
+- ❓ **[FAQ](./pt-br/FAQ-Migration-Hooks.md)** - Perguntas frequentes
 
 ---
 
@@ -23,8 +56,8 @@ for integrating third-party messaging channels into Odoo's Discuss system.
 
 ### Getting Started
 
-- **Portuguese**: [[pt-br/README#Início Rápido|⚡ Início Rápido]]
-- **English**: [[en/README#Quick Start|⚡ Quick Start]]
+- **English**: [⚡ Quick Start](./en/README.md#quick-start)
+- **Português**: [⚡ Início Rápido](./pt-br/README.md#início-rápido)
 
 ### Plugin Documentation
 

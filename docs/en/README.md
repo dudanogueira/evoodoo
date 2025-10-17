@@ -12,6 +12,19 @@
 - [[#Troubleshooting]]
 - [[#Contributing]]
 
+### 📚 Additional Documentation
+
+- 🔄 **[Migration to Native Hooks](./Migration-BaseAutomations-to-CodeHooks.md)** -
+  Complete migration guide
+- 📊 **[Comparison: Automations vs Hooks](./Comparison-Automations-vs-Hooks.md)** -
+  Visual analysis of changes
+- ✅ **[Post-Migration Checklist](./Post-Migration-Checklist.md)** - Verification after
+  update
+- ❓ **[FAQ - Migration](./FAQ-Migration-Hooks.md)** - Frequently asked questions about
+  hooks
+- 🔌 **[Evolution Plugin Guide](./Evolution%20Plugin.md)** - Evolution plugin
+  documentation
+
 ---
 
 ## 📖 Overview
@@ -84,6 +97,11 @@ docker compose -f compose-dev.yaml restart n8n
 
 ## 🏗️ Architecture
 
+> **📢 Important**: As of the current version, Discuss Hub no longer uses Odoo base
+> automations. All webhook and integration logic has been migrated to native Python
+> hooks for better performance and maintainability. See the
+> [migration guide](./Migration-BaseAutomations-to-CodeHooks.md) for more details.
+
 ```mermaid
 graph TD
     A[External Webhook] --> B[HTTP Controller]
@@ -94,9 +112,14 @@ graph TD
     F --> G[Discuss Channel]
     G --> H[Mail Message]
 
-    I[N8N Workflows] --> J[Automations]
-    J --> K[Base Automation]
-    K --> L[Automated Actions]
+    I[message_post Hook] --> J[Outgoing Message]
+    J --> C
+
+    K[_notify_thread Hook] --> L[Bot Automation]
+    L --> M[Bot Manager]
+
+    N[create/write Hook] --> O[Outgoing Reaction]
+    O --> C
 ```
 
 ### 🧩 Main Components
@@ -124,8 +147,9 @@ graph TD
 
 #### 4. **Extended Models**
 
-- [[Discuss Channel Model|discuss_channel.py]] - Channel extensions
+- [[Discuss Channel Model|discuss_channel.py]] - Channel extensions + message hooks
 - [[Mail Message Model|mail_message.py]] - Message processing
+- [[Mail Message Reaction Model|mail_message_reaction.py]] - Reaction hooks
 - [[Res Partner Model|res_partner.py]] - Contact integration
 
 ---

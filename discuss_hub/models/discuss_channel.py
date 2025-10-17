@@ -1,4 +1,8 @@
+import logging
+
 from odoo import api, fields, models
+
+_logger = logging.getLogger(__name__)
 
 
 class DiscussChannel(models.Model):
@@ -20,7 +24,6 @@ class DiscussChannel(models.Model):
         string="Discuss Hub Outgoing Destination for this channel"
     )
     is_current_user_member = fields.Boolean(
-        string="Is Current User Member",
         compute="_compute_is_current_user_member",
         store=False,
     )
@@ -110,3 +113,111 @@ class DiscussChannel(models.Model):
                 "default_channel_ids": [self.id],
             },
         }
+
+    @api.returns("mail.message", lambda value: value.id)
+    def message_post(self, **kwargs):
+        """
+        Override message_post to handle outgoing messages to external connectors.
+        This replaces the base automation for outgoing messages.
+
+        Only sends messages to external platforms when:
+        - Channel has a discuss_hub_connector
+        - Message was created successfully
+        - Message author is a partner with a system user (internal user)
+        """
+        # Call the parent method first to create the message
+        message = super().message_post(**kwargs)
+
+        # Handle outgoing message to connector (replaces base automation)
+        # Only send if message is from a partner with a system user (not external/bot)
+        if self.discuss_hub_connector and message:
+            # Check if message author has a system user
+            has_system_user = False
+            if message.author_id:
+                has_system_user = bool(
+                    self.env["res.users"].search(
+                        [("partner_id", "=", message.author_id.id)], limit=1
+                    )
+                )
+
+            if has_system_user:
+                try:
+                    _logger.info(
+                        f"discuss_channel.message_post: sending outgoing message "
+                        f"({message}) from user {message.author_id.name} to {self}"
+                    )
+                    self.discuss_hub_connector.outgo_message(
+                        channel=self, message=message
+                    )
+                except Exception as e:
+                    _logger.error(
+                        f"Error sending outgoing message to connector: {e}",
+                        exc_info=True,
+                    )
+            else:
+                _logger.debug(
+                    f"discuss_channel.message_post: skipping outgoing message "
+                    f"({message}) - author "
+                    f"{message.author_id.name if message.author_id else 'N/A'} "
+                    f"has no system user"
+                )
+
+        return message
+
+    def _notify_thread(self, message, msg_vals=False, **kwargs):
+        """
+        Override _notify_thread to handle bot automation for incoming messages.
+        This replaces the base automation for bot outgoing.
+
+        Only processes bot automation when:
+        - Message author is NOT a bot (does not have a system user)
+        - This prevents infinite loops where bot responses trigger the bot again
+
+        Bot processing is done with auto-commit to ensure the incoming message
+        is saved and visible before the bot processes it.
+        """
+        # Call parent method
+        result = super()._notify_thread(message, msg_vals=msg_vals, **kwargs)
+
+        # Check if message author is a bot/system user
+        # If author has a system user, skip bot processing to avoid loops
+        is_system_user = False
+        if message.author_id:
+            is_system_user = bool(
+                self.env["res.users"].search(
+                    [("partner_id", "=", message.author_id.id)], limit=1
+                )
+            )
+
+        # Only process bot automation for messages from external users (no system user)
+        if not is_system_user:
+            # Handle bot automation (replaces base automation)
+            # Check if channel has partners with bots
+            partners_with_bot = self.channel_partner_ids.filtered(lambda p: p.bot)
+            if partners_with_bot:
+                try:
+                    _logger.info(
+                        f"discuss_channel._notify_thread: processing bot for "
+                        f"{len(partners_with_bot)} partners"
+                    )
+
+                    # Commit the transaction to ensure message is visible immediately
+                    # This allows the user to see their message before bot responds
+                    # pylint: disable=invalid-commit
+                    self.env.cr.commit()
+
+                    # Process bot in a new cursor context
+                    for partner in partners_with_bot:
+                        partner.bot.outgo(self, partner)
+
+                except Exception as e:
+                    _logger.error(
+                        f"Error processing bot automation: {e}", exc_info=True
+                    )
+        else:
+            _logger.debug(
+                f"discuss_channel._notify_thread: skipping bot processing "
+                f"- message from system user {message.author_id.name}"
+            )
+
+        return result

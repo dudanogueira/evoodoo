@@ -4,8 +4,8 @@ Script to create 3 users and a Discuss Hub routing team with those users.
 Usage: Run this script in the Odoo shell or as a Python script with Odoo environment.
 """
 
-import xmlrpc.client
 import os
+import xmlrpc.client
 
 # Configuration
 ODOO_URL = os.getenv("ODOO_URL", "http://localhost:8069")
@@ -42,26 +42,26 @@ TEAM_NAME_2 = "VIP Support Team"
 def main():
     """Main function to create users and team."""
     print(f"Connecting to Odoo at {ODOO_URL}...")
-    
+
     # Connect to Odoo
     common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-    
+
     # Authenticate
     uid = common.authenticate(ODOO_DB, ODOO_ADMIN_USER, ODOO_ADMIN_PASSWORD, {})
-    
+
     if not uid:
         print("❌ Authentication failed! Check your credentials.")
         return
-    
+
     print(f"✅ Authenticated as user ID: {uid}")
-    
+
     # Connect to object endpoint
     models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
-    
+
     # Create users
     created_user_ids = []
     print("\n📝 Creating users...")
-    
+
     for user_data in USERS_DATA:
         # Check if user already exists
         existing_user = models.execute_kw(
@@ -72,9 +72,12 @@ def main():
             "search",
             [[("login", "=", user_data["login"])]],
         )
-        
+
         if existing_user:
-            print(f"⚠️  User '{user_data['login']}' already exists (ID: {existing_user[0]})")
+            print(
+                f"⚠️  User '{user_data['login']}' already exists "
+                f"(ID: {existing_user[0]})"
+            )
             created_user_ids.append(existing_user[0])
         else:
             # Create new user
@@ -96,7 +99,7 @@ def main():
             )
             print(f"✅ Created user '{user_data['login']}' (ID: {user_id})")
             created_user_ids.append(user_id)
-    
+
     # Check if team already exists
     print(f"\n🔍 Checking if team '{TEAM_NAME}' exists...")
     existing_team = models.execute_kw(
@@ -107,12 +110,12 @@ def main():
         "search",
         [[("name", "=", TEAM_NAME)]],
     )
-    
+
     if existing_team:
         team_id = existing_team[0]
         print(f"⚠️  Team '{TEAM_NAME}' already exists (ID: {team_id})")
         print("🔄 Updating team members...")
-        
+
         # Get existing team member IDs
         team_data = models.execute_kw(
             ODOO_DB,
@@ -123,7 +126,7 @@ def main():
             [team_id],
             {"fields": ["team_member_ids"]},
         )
-        
+
         # Delete existing team members
         if team_data[0]["team_member_ids"]:
             models.execute_kw(
@@ -153,7 +156,7 @@ def main():
             ],
         )
         print(f"✅ Created team '{TEAM_NAME}' (ID: {team_id})")
-    
+
     # Create team members
     print("\n👥 Adding users to team...")
     for order, user_id in enumerate(created_user_ids, start=1):
@@ -172,7 +175,7 @@ def main():
                 }
             ],
         )
-        
+
         user_name = models.execute_kw(
             ODOO_DB,
             uid,
@@ -182,9 +185,9 @@ def main():
             [user_id],
             {"fields": ["name"]},
         )[0]["name"]
-        
+
         print(f"✅ Added '{user_name}' to team (Member ID: {member_id})")
-    
+
     # Create second team with only agent1
     print(f"\n🔍 Checking if team '{TEAM_NAME_2}' exists...")
     existing_team_2 = models.execute_kw(
@@ -195,12 +198,12 @@ def main():
         "search",
         [[("name", "=", TEAM_NAME_2)]],
     )
-    
+
     if existing_team_2:
         team_id_2 = existing_team_2[0]
         print(f"⚠️  Team '{TEAM_NAME_2}' already exists (ID: {team_id_2})")
         print("🔄 Updating team members...")
-        
+
         # Get existing team member IDs
         team_data_2 = models.execute_kw(
             ODOO_DB,
@@ -211,7 +214,7 @@ def main():
             [team_id_2],
             {"fields": ["team_member_ids"]},
         )
-        
+
         # Delete existing team members
         if team_data_2[0]["team_member_ids"]:
             models.execute_kw(
@@ -241,11 +244,11 @@ def main():
             ],
         )
         print(f"✅ Created team '{TEAM_NAME_2}' (ID: {team_id_2})")
-    
+
     # Add only agent1 to the second team
     print(f"\n👥 Adding agent1 to '{TEAM_NAME_2}'...")
     agent1_user_id = created_user_ids[0]  # First user is agent1
-    
+
     member_id_2 = models.execute_kw(
         ODOO_DB,
         uid,
@@ -261,7 +264,7 @@ def main():
             }
         ],
     )
-    
+
     agent1_name = models.execute_kw(
         ODOO_DB,
         uid,
@@ -271,12 +274,14 @@ def main():
         [agent1_user_id],
         {"fields": ["name"]},
     )[0]["name"]
-    
+
     print(f"✅ Added '{agent1_name}' to team (Member ID: {member_id_2})")
-    
+
     print("\n🎉 Setup complete!")
     print(f"   - Created/Updated {len(created_user_ids)} users")
-    print(f"   - Team '{TEAM_NAME}' (ID: {team_id}) has {len(created_user_ids)} members")
+    print(
+        f"   - Team '{TEAM_NAME}' (ID: {team_id}) has {len(created_user_ids)} members"
+    )
     print(f"   - Team '{TEAM_NAME_2}' (ID: {team_id_2}) has 1 member (agent1)")
     print("\n📋 User credentials:")
     for user_data in USERS_DATA:

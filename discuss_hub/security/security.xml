@@ -3,12 +3,11 @@
     <!-- Group used to grant access to Discuss Hub features -->
     <record id="group_discuss_hub_user" model="res.groups">
         <field name="name">Discuss Hub / Access</field>
-        <field name="category_id" ref="base.module_category_hidden"/>
+        <field name="category_id" ref="base.module_category_hidden" />
     </record>
 
     <!-- Make administration users (base.group_system) also have Discuss Hub access by default -->
     <record id="base.group_system" model="res.groups">
         <field name="implied_ids" eval="[(4, ref('group_discuss_hub_user'))]" />
     </record>
-
 </odoo>
