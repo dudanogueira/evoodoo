@@ -13,6 +13,7 @@
                         type="object"
                         class="oe_stat_button"
                         icon="fa-whatsapp"
+                        groups="discuss_hub.group_discuss_hub_user"
                     />
                 </div>
             </xpath>
@@ -72,6 +73,7 @@
                         name="action_view_channel"
                         icon="fa-commenting"
                         context="{'default_partner_id': id}"
+                        groups="discuss_hub.group_discuss_hub_user"
                     >
                         <field
                             string="Chats"

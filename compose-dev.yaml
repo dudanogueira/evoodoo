@@ -26,6 +26,7 @@ services:
     user: root
     depends_on:
       - db
+      - mailpit
     tty: true
     command: odoo -d odoo -u discuss_hub -i discuss_hub #--log-handler :DEBUG
     environment:

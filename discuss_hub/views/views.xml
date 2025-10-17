@@ -228,7 +228,7 @@
 
     <!-- Top menu item -->
 
-    <menuitem name="Discuss Hub" id="discuss_hub.menu_root" />
+    <menuitem name="Discuss Hub" id="discuss_hub.menu_root" groups="discuss_hub.group_discuss_hub_user" />
 
     <!-- menu categories -->
 
@@ -237,6 +237,7 @@
         id="discuss_hub.connector"
         parent="discuss_hub.menu_root"
         action="discuss_hub.action_window"
+        groups="discuss_hub.group_discuss_hub_user"
     />
 
     <!-- actions -->
@@ -278,6 +279,7 @@
         id="discuss_hub.channels_list"
         parent="discuss_hub.menu_root"
         action="action_window_list_channels"
+        groups="discuss_hub.group_discuss_hub_user"
     />
 
     <!-- team list view definition-->
@@ -352,6 +354,7 @@
         id="discuss_hub.routing_team"
         parent="discuss_hub.menu_root"
         action="action_window_list_team"
+        groups="discuss_hub.group_discuss_hub_user"
     />
     <!-- bot list view definition-->
 
@@ -385,5 +388,6 @@
         id="discuss_hub.bot_manager"
         parent="discuss_hub.menu_root"
         action="action_window_list_bot"
+        groups="discuss_hub.group_discuss_hub_user"
     />
 </odoo>
