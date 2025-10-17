@@ -8,3 +8,5 @@ access_discuss_hub.archive_manager,discuss_hub Archive Manager / Forward,discuss
 access_discuss_hub.routing_team,discuss_hub Routing Team,discuss_hub.model_discuss_hub_routing_team,discuss_hub.group_discuss_hub_user,1,1,1,1
 access_discuss_hub.routing_team_member,discuss_hub Routing Team Member,discuss_hub.model_discuss_hub_routing_team_member,discuss_hub.group_discuss_hub_user,1,1,1,1
 access_discuss_hub.bot_manager,discuss_hub Bot Manager,discuss_hub.model_discuss_hub_bot_manager,discuss_hub.group_discuss_hub_user,1,1,1,1
+
+access_discuss_hub.bot_manager_session,discuss_hub Bot Manager Session,discuss_hub.model_discuss_hub_bot_manager_session,discuss_hub.group_discuss_hub_user,1,1,1,1

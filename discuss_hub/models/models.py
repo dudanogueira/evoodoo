@@ -82,6 +82,7 @@ class DiscussHubConnector(models.Model):
         [
             ("open", "Open"),
             ("closed", "Closed"),
+            ("qr_code", "QR Code"),
             ("not_found", "Not Found"),
             ("unauthorized", "Unauthorized"),
             ("error", "Error"),
@@ -213,6 +214,7 @@ class DiscussHubConnector(models.Model):
         for connector in self:
             status = connector.get_status()
             if status:
+                print(status)
                 connector.status = status.get("status", "not_found")
                 connector.qr_code_base64 = status.get("qr_code_base64", None)
 
