@@ -44,27 +44,27 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Main function to create users and team."""
-    logger.info("Connecting to Odoo at %s...", ODOO_URL)
-
+    print(f"Connecting to Odoo at {ODOO_URL}...")
+    
     # Connect to Odoo
     common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-
+    
     # Authenticate
     uid = common.authenticate(ODOO_DB, ODOO_ADMIN_USER, ODOO_ADMIN_PASSWORD, {})
-
+    
     if not uid:
         logger.error("Authentication failed! Check your credentials.")
         return
-
-    logger.info("Authenticated as user ID: %s", uid)
-
+    
+    print(f"✅ Authenticated as user ID: {uid}")
+    
     # Connect to object endpoint
     models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
 
     # Create users
     created_user_ids = []
-    logger.info("📝 Creating users...")
-
+    print("\n📝 Creating users...")
+    
     for user_data in USERS_DATA:
         # Check if user already exists
         existing_user = models.execute_kw(
@@ -77,11 +77,7 @@ def main():
         )
 
         if existing_user:
-            logger.warning(
-                "User '%s' already exists (ID: %s)",
-                user_data["login"],
-                existing_user[0],
-            )
+            print(f"⚠️  User '{user_data['login']}' already exists (ID: {existing_user[0]})")
             created_user_ids.append(existing_user[0])
         else:
             # Create new user
@@ -117,9 +113,9 @@ def main():
 
     if existing_team:
         team_id = existing_team[0]
-        logger.warning("Team '%s' already exists (ID: %s)", TEAM_NAME, team_id)
-        logger.info("Updating team members...")
-
+        print(f"⚠️  Team '{TEAM_NAME}' already exists (ID: {team_id})")
+        print("🔄 Updating team members...")
+        
         # Get existing team member IDs
         team_data = models.execute_kw(
             ODOO_DB,
@@ -159,8 +155,8 @@ def main():
                 }
             ],
         )
-        logger.info("Created team '%s' (ID: %s)", TEAM_NAME, team_id)
-
+        print(f"✅ Created team '{TEAM_NAME}' (ID: {team_id})")
+    
     # Create team members
     logger.info("👥 Adding users to team...")
     for order, user_id in enumerate(created_user_ids, start=1):
@@ -189,9 +185,9 @@ def main():
             [user_id],
             {"fields": ["name"]},
         )[0]["name"]
-
-        logger.info("Added '%s' to team (Member ID: %s)", user_name, member_id)
-
+        
+        print(f"✅ Added '{user_name}' to team (Member ID: {member_id})")
+    
     # Create second team with only agent1
     logger.info("🔍 Checking if team '%s' exists...", TEAM_NAME_2)
     existing_team_2 = models.execute_kw(
@@ -205,9 +201,9 @@ def main():
 
     if existing_team_2:
         team_id_2 = existing_team_2[0]
-        logger.warning("Team '%s' already exists (ID: %s)", TEAM_NAME_2, team_id_2)
-        logger.info("Updating team members...")
-
+        print(f"⚠️  Team '{TEAM_NAME_2}' already exists (ID: {team_id_2})")
+        print("🔄 Updating team members...")
+        
         # Get existing team member IDs
         team_data_2 = models.execute_kw(
             ODOO_DB,
@@ -247,8 +243,8 @@ def main():
                 }
             ],
         )
-        logger.info("Created team '%s' (ID: %s)", TEAM_NAME_2, team_id_2)
-
+        print(f"✅ Created team '{TEAM_NAME_2}' (ID: {team_id_2})")
+    
     # Add only agent1 to the second team
     logger.info("👥 Adding agent1 to '%s'...", TEAM_NAME_2)
     agent1_user_id = created_user_ids[0]  # First user is agent1
@@ -278,23 +274,14 @@ def main():
         [agent1_user_id],
         {"fields": ["name"]},
     )[0]["name"]
-
-    logger.info("Added '%s' to team (Member ID: %s)", agent1_name, member_id_2)
-
-    logger.info("🎉 Setup complete!")
-    logger.info("   - Created/Updated %s users", len(created_user_ids))
-    logger.info(
-        "   - Team '%s' (ID: %s) has %s members",
-        TEAM_NAME,
-        team_id,
-        len(created_user_ids),
-    )
-    logger.info(
-        "   - Team '%s' (ID: %s) has 1 member (agent1)",
-        TEAM_NAME_2,
-        team_id_2,
-    )
-    logger.info("📋 User credentials:")
+    
+    print(f"✅ Added '{agent1_name}' to team (Member ID: {member_id_2})")
+    
+    print("\n🎉 Setup complete!")
+    print(f"   - Created/Updated {len(created_user_ids)} users")
+    print(f"   - Team '{TEAM_NAME}' (ID: {team_id}) has {len(created_user_ids)} members")
+    print(f"   - Team '{TEAM_NAME_2}' (ID: {team_id_2}) has 1 member (agent1)")
+    print("\n📋 User credentials:")
     for user_data in USERS_DATA:
         logger.info(
             "   Login: %s | Password: %s",
