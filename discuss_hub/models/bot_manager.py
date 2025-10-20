@@ -71,6 +71,7 @@ class DiscussHubBotManager(models.Model):
         timed_out = False
         message_audio_base64 = None
         attachment_id = None
+        request_data = None
         try:
             request_data = requests.post(
                 self.bot_url,
@@ -88,10 +89,18 @@ class DiscussHubBotManager(models.Model):
             _logger.error(f"Timeout while sending message to bot {self.bot_url}: {e}")
             timed_out = True
 
-        if request_data.status_code != 200 or timed_out or not request_data.content:
-            _logger.error(f"Failed to send message to bot {self}: {request_data.text}")
+        if (
+            timed_out
+            or not request_data
+            or request_data.status_code != 200
+            or not request_data.content
+        ):
+            if request_data:
+                _logger.error(
+                    f"Failed to send message to bot {self}: {request_data.text}"
+                )
             # sending default error message
-            channel.message_post(
+            channel.with_context(discuss_hub_skip_bot=True).message_post(
                 body=self.on_error_message,
                 author_id=partner.id,
                 message_type="comment",
@@ -101,8 +110,35 @@ class DiscussHubBotManager(models.Model):
             # if the author has a system user (see discuss_channel.py)
             return True
 
+        # Parse response data
+        try:
+            response_data = request_data.json()
+        except ValueError as e:
+            _logger.error(f"Failed to parse JSON response from bot {self}: {e}")
+            return False
+
+        # Normalize response to list format
+        if isinstance(response_data, str):
+            # If response is a simple string, convert to expected format
+            response_data = [{"text": response_data}]
+        elif isinstance(response_data, dict):
+            # If response is a single dict, wrap in list
+            response_data = [response_data]
+        elif not isinstance(response_data, list):
+            _logger.error(
+                f"Unexpected response format from bot {self}: {type(response_data)}"
+            )
+            return False
+
         # for each message
-        for received_message in request_data.json():
+        for received_message in response_data:
+            # Ensure received_message is a dict
+            if not isinstance(received_message, dict):
+                _logger.warning(
+                    f"Skipping non-dict message from bot {self}: {received_message}"
+                )
+                continue
+
             attachments = []
             # go thru each type, except text
             for content_type, content in received_message.items():
@@ -122,7 +158,7 @@ class DiscussHubBotManager(models.Model):
                             {content_type}: {e}."""
                         )
                         pass
-            new_message = channel.message_post(
+            new_message = channel.with_context(discuss_hub_skip_bot=True).message_post(
                 body=received_message.get("text", ""),
                 author_id=partner.id,
                 message_type="comment",
@@ -329,7 +365,7 @@ class DiscussHubBotManager(models.Model):
                         )
                 # handle typebot markdown. first, replace \n to <br>
                 body = body.replace("\n", "<br>")
-                channel.message_post(
+                channel.with_context(discuss_hub_skip_bot=True).message_post(
                     body=Markup(body),
                     author_id=partner.id,
                     message_type="comment",

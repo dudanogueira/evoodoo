@@ -8,4 +8,6 @@ from . import (
     test_evolution,
     test_code_hooks,
     test_models,
+    test_bot_manager,
+    test_res_partner,
 )

@@ -180,6 +180,10 @@ class DiscussChannel(models.Model):
         # Call parent method
         result = super()._notify_thread(message, msg_vals=msg_vals, **kwargs)
 
+        # Skip bot processing if explicitly disabled in context
+        if self.env.context.get("discuss_hub_skip_bot"):
+            return result
+
         # Check if message author is a bot/system user
         # If author has a system user, skip bot processing to avoid loops
         is_system_user = False
