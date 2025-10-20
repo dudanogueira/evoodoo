@@ -7,4 +7,5 @@ from . import (
     test_base_extra,
     test_evolution,
     test_code_hooks,
+    test_models,
 )

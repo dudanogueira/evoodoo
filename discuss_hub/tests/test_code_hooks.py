@@ -3,6 +3,8 @@ Test the native code hooks that replaced base automations.
 These tests verify that message_post, _notify_thread, and reaction hooks work correctly.
 """
 
+from unittest.mock import patch
+
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -30,6 +32,16 @@ class TestCodeHooks(TransactionCase):
             }
         )
 
+        # Create a system user for the partner (required for message_post hook to work)
+        self.user = self.env["res.users"].create(
+            {
+                "name": "Test User",
+                "login": "testuser",
+                "email": "test@example.com",
+                "partner_id": self.partner.id,
+            }
+        )
+
         # Create a test channel with connector
         self.channel = self.env["discuss.channel"].create(
             {
@@ -39,29 +51,20 @@ class TestCodeHooks(TransactionCase):
             }
         )
 
-    def test_message_post_hook_triggers_outgo_message(self):
+    @patch("odoo.addons.discuss_hub.models.models.DiscussHubConnector.outgo_message")
+    def test_message_post_hook_triggers_outgo_message(self, mock_outgo_message):
         """Test that message_post hook calls connector.outgo_message"""
 
-        # Mock the outgo_message method to track if it was called
-        call_count = {"count": 0}
-        original_outgo = self.connector.outgo_message
-
-        def mock_outgo_message(channel, message):
-            call_count["count"] += 1
-            # Call original to maintain normal behavior
-            return original_outgo(channel, message)
-
-        self.connector.outgo_message = mock_outgo_message
-
-        # Post a message to the channel
-        message = self.channel.message_post(
+        # Post a message to the channel as the test user (system user)
+        # The hook only triggers for messages from system users
+        message = self.channel.with_user(self.user).message_post(
             body="Test message",
             message_type="comment",
         )
 
         # Verify the hook was triggered
         self.assertEqual(
-            call_count["count"],
+            mock_outgo_message.call_count,
             1,
             "outgo_message should be called once via message_post hook",
         )
@@ -88,29 +91,22 @@ class TestCodeHooks(TransactionCase):
 
         self.assertTrue(message, "Message should be created even without connector")
 
-    def test_bot_automation_hook_triggers_on_notify(self):
+    @patch("odoo.addons.discuss_hub.models.bot_manager.DiscussHubBotManager.outgo")
+    def test_bot_automation_hook_triggers_on_notify(self, mock_bot_outgo):
         """Test that _notify_thread hook processes bot automation"""
 
         # Create a bot for the partner
         bot = self.env["discuss_hub.bot_manager"].create(
             {
                 "bot_type": "generic",
+                "bot_url": "https://bot.example.com",
+                "bot_api_key": "test_api_key",
                 "partner": [(4, self.partner.id)],
             }
         )
 
         # Update partner with bot
         self.partner.write({"bot": bot.id})
-
-        # Mock the bot.outgo method
-        call_count = {"count": 0}
-        original_outgo = bot.outgo
-
-        def mock_bot_outgo(channel, partner):
-            call_count["count"] += 1
-            return original_outgo(channel, partner)
-
-        bot.outgo = mock_bot_outgo
 
         # Post a message which should trigger _notify_thread
         self.channel.message_post(
@@ -122,12 +118,13 @@ class TestCodeHooks(TransactionCase):
         # Note: This might be 0 if the current implementation doesn't trigger
         # for self-posted messages. Adjust based on actual behavior.
         self.assertGreaterEqual(
-            call_count["count"],
+            mock_bot_outgo.call_count,
             0,
             "bot.outgo should be called via _notify_thread hook",
         )
 
-    def test_reaction_create_hook_triggers_outgo_reaction(self):
+    @patch("odoo.addons.discuss_hub.models.models.DiscussHubConnector.outgo_reaction")
+    def test_reaction_create_hook_triggers_outgo_reaction(self, mock_outgo_reaction):
         """Test that reaction create hook calls connector.outgo_reaction"""
 
         # First create a message with discuss_hub_message_id (external message)
@@ -140,16 +137,6 @@ class TestCodeHooks(TransactionCase):
             }
         )
 
-        # Mock the outgo_reaction method
-        call_count = {"count": 0}
-        original_outgo_reaction = self.connector.outgo_reaction
-
-        def mock_outgo_reaction(channel, msg, reaction):
-            call_count["count"] += 1
-            return original_outgo_reaction(channel, msg, reaction)
-
-        self.connector.outgo_reaction = mock_outgo_reaction
-
         # Create a reaction
         reaction = self.env["mail.message.reaction"].create(
             {
@@ -161,13 +148,16 @@ class TestCodeHooks(TransactionCase):
 
         # Verify the hook was triggered
         self.assertEqual(
-            call_count["count"],
+            mock_outgo_reaction.call_count,
             1,
             "outgo_reaction should be called once via create hook",
         )
         self.assertTrue(reaction, "Reaction should be created")
 
-    def test_reaction_without_external_id_does_not_trigger_hook(self):
+    @patch("odoo.addons.discuss_hub.models.models.DiscussHubConnector.outgo_reaction")
+    def test_reaction_without_external_id_does_not_trigger_hook(
+        self, mock_outgo_reaction
+    ):
         """Test that reactions on internal messages don't trigger outgo_reaction"""
 
         # Create a message WITHOUT discuss_hub_message_id (internal message)
@@ -180,16 +170,6 @@ class TestCodeHooks(TransactionCase):
             }
         )
 
-        # Mock the outgo_reaction method
-        call_count = {"count": 0}
-        original_outgo_reaction = self.connector.outgo_reaction
-
-        def mock_outgo_reaction(channel, msg, reaction):
-            call_count["count"] += 1
-            return original_outgo_reaction(channel, msg, reaction)
-
-        self.connector.outgo_reaction = mock_outgo_reaction
-
         # Create a reaction
         reaction = self.env["mail.message.reaction"].create(
             {
@@ -201,20 +181,18 @@ class TestCodeHooks(TransactionCase):
 
         # Verify the hook was NOT triggered (no discuss_hub_message_id)
         self.assertEqual(
-            call_count["count"],
+            mock_outgo_reaction.call_count,
             0,
             "outgo_reaction should NOT be called for internal messages",
         )
         self.assertTrue(reaction, "Reaction should still be created")
 
-    def test_error_in_hook_does_not_break_normal_flow(self):
+    @patch("odoo.addons.discuss_hub.models.models.DiscussHubConnector.outgo_message")
+    def test_error_in_hook_does_not_break_normal_flow(self, mock_outgo_message):
         """Test that errors in hooks don't break the normal Odoo flow"""
 
         # Make outgo_message raise an error
-        def failing_outgo_message(channel, message):
-            raise Exception("Simulated error in outgo_message")
-
-        self.connector.outgo_message = failing_outgo_message
+        mock_outgo_message.side_effect = Exception("Simulated error in outgo_message")
 
         # Post message should still work despite the error in hook
         message = self.channel.message_post(

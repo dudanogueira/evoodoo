@@ -1,6 +1,7 @@
 import logging
 
 from odoo import api, fields, models
+from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
@@ -203,8 +204,10 @@ class DiscussChannel(models.Model):
 
                     # Commit the transaction to ensure message is visible immediately
                     # This allows the user to see their message before bot responds
+                    # Skip commit during tests (will raise AssertionError in test mode)
                     # pylint: disable=invalid-commit
-                    self.env.cr.commit()
+                    if not config.get("test_enable"):
+                        self.env.cr.commit()
 
                     # Process bot in a new cursor context
                     for partner in partners_with_bot:
