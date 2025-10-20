@@ -67,20 +67,23 @@ class DiscussHubBotManager(models.Model):
         help="Message to send when an error occurs while processing a request.",
     )
 
-    def generic_handle(self, message, channel, partner):
-        timed_out = False
-        message_audio_base64 = None
-        attachment_id = None
-        request_data = None
-        
-        # Check for audio attachments
-        if message.attachment_ids:
-            for attachment in message.attachment_ids:
-                if attachment.mimetype and attachment.mimetype.startswith("audio/"):
-                    message_audio_base64 = attachment.datas.decode("utf-8") if isinstance(attachment.datas, bytes) else attachment.datas
-                    attachment_id = attachment.id
-                    break
-        
+    def _extract_audio_attachment(self, message):
+        """Extract audio attachment data from message."""
+        if not message.attachment_ids:
+            return None, None
+
+        for attachment in message.attachment_ids:
+            if attachment.mimetype and attachment.mimetype.startswith("audio/"):
+                message_audio_base64 = (
+                    attachment.datas.decode("utf-8")
+                    if isinstance(attachment.datas, bytes)
+                    else attachment.datas
+                )
+                return message_audio_base64, attachment.id
+        return None, None
+
+    def _send_bot_request(self, message, channel, message_audio_base64, attachment_id):
+        """Send request to bot API and return response or None on failure."""
         try:
             request_data = requests.post(
                 self.bot_url,
@@ -92,81 +95,101 @@ class DiscussHubBotManager(models.Model):
                     "attachment_id": attachment_id,
                     "channel_id": channel.id,
                 },
-                timeout=self.bot_url_timeout,  # Set a timeout for the request
+                timeout=self.bot_url_timeout,
             )
+            return request_data
         except requests.Timeout as e:
             _logger.error(f"Timeout while sending message to bot {self.bot_url}: {e}")
-            timed_out = True
+            return None
 
-        if (
-            timed_out
-            or not request_data
-            or request_data.status_code != 200
-            or not request_data.content
-        ):
-            if request_data:
-                _logger.error(
-                    f"Failed to send message to bot {self}: {request_data.text}"
-                )
-            # sending default error message
-            channel.with_context(discuss_hub_skip_bot=True).message_post(
-                body=self.on_error_message,
-                author_id=partner.id,
-                message_type="comment",
-                subtype_xmlid="mail.mt_comment",
-            )
-            # Note: outgo_message is automatically called by message_post() hook
-            # if the author has a system user (see discuss_channel.py)
-            return True
+    def _handle_bot_error(self, channel, partner, request_data=None):
+        """Handle bot API errors by sending error message to channel."""
+        if request_data:
+            _logger.error(f"Failed to send message to bot {self}: {request_data.text}")
+        channel.with_context(discuss_hub_skip_bot=True).message_post(
+            body=self.on_error_message,
+            author_id=partner.id,
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
 
-        # Parse response data
+    def _normalize_bot_response(self, request_data):
+        """Parse and normalize bot response to list format."""
         try:
             response_data = request_data.json()
         except ValueError as e:
             _logger.error(f"Failed to parse JSON response from bot {self}: {e}")
-            return False
+            return None
 
         # Normalize response to list format
         if isinstance(response_data, str):
-            # If response is a simple string, convert to expected format
-            response_data = [{"text": response_data}]
+            return [{"text": response_data}]
         elif isinstance(response_data, dict):
-            # If response is a single dict, wrap in list
-            response_data = [response_data]
-        elif not isinstance(response_data, list):
+            return [response_data]
+        elif isinstance(response_data, list):
+            return response_data
+        else:
             _logger.error(
                 f"Unexpected response format from bot {self}: {type(response_data)}"
             )
+            return None
+
+    def _process_message_attachments(self, received_message):
+        """Process attachments from received message."""
+        attachments = []
+        for content_type, content in received_message.items():
+            if content_type == "text":
+                continue
+
+            # Map content types to file extensions
+            if content_type == "audio":
+                content_type = "audio.mp3"
+            elif content_type == "video":
+                content_type = "video.mp4"
+            elif content_type == "pdf":
+                content_type = "application.pdf"
+
+            try:
+                decoded_data = base64.b64decode(content)
+                attachments.append((content_type, decoded_data))
+            except ValueError as e:
+                _logger.warning(f"Failed to decode base64 content {content_type}: {e}.")
+        return attachments
+
+    def generic_handle(self, message, channel, partner):
+        """Handle generic bot message processing."""
+        # Extract audio attachment if present
+        message_audio_base64, attachment_id = self._extract_audio_attachment(message)
+
+        # Send request to bot
+        request_data = self._send_bot_request(
+            message, channel, message_audio_base64, attachment_id
+        )
+
+        # Check for errors
+        if (
+            not request_data
+            or request_data.status_code != 200
+            or not request_data.content
+        ):
+            self._handle_bot_error(channel, partner, request_data)
+            return True
+
+        # Parse and normalize response
+        response_data = self._normalize_bot_response(request_data)
+        if response_data is None:
             return False
 
-        # for each message
+        # Process each message in response
         for received_message in response_data:
-            # Ensure received_message is a dict
             if not isinstance(received_message, dict):
                 _logger.warning(
                     f"Skipping non-dict message from bot {self}: {received_message}"
                 )
                 continue
 
-            attachments = []
-            # go thru each type, except text
-            for content_type, content in received_message.items():
-                if content_type != "text":
-                    if content_type == "audio":
-                        content_type = "audio.mp3"
-                    elif content_type == "video":
-                        content_type = "video.mp4"
-                    elif content_type == "pdf":
-                        content_type = "application.pdf"
-                    try:
-                        decoded_data = base64.b64decode(content)
-                        attachments.append((content_type, decoded_data))
-                    except ValueError as e:
-                        _logger.warning(
-                            f"""Failed to decode base64 content
-                            {content_type}: {e}."""
-                        )
-                        pass
+            attachments = self._process_message_attachments(received_message)
+
             new_message = channel.with_context(discuss_hub_skip_bot=True).message_post(
                 body=received_message.get("text", ""),
                 author_id=partner.id,
@@ -174,8 +197,6 @@ class DiscussHubBotManager(models.Model):
                 subtype_xmlid="mail.mt_comment",
                 attachments=attachments,
             )
-            # Note: outgo_message is automatically called by message_post() hook
-            # if the author has a system user (see discuss_channel.py)
             _logger.info(f"Bot message created: {new_message.id}")
         return True
 
