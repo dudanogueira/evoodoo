@@ -349,7 +349,8 @@ class TestGenericBotManager(TestBotManagerBase):
         bot_message = self.channel.message_ids.filtered(
             lambda m: m.author_id == self.bot_partner
         )[-1]
-        self.assertEqual(bot_message.body, "Simple text response")
+        # Odoo wraps plain text in <p> tags
+        self.assertIn("Simple text response", bot_message.body)
 
     @patch(
         "odoo.addons.discuss_hub.models.discuss_channel.DiscussChannel._notify_thread"
@@ -386,7 +387,8 @@ class TestGenericBotManager(TestBotManagerBase):
         bot_message = self.channel.message_ids.filtered(
             lambda m: m.author_id == self.bot_partner
         )[-1]
-        self.assertEqual(bot_message.body, "Dict response")
+        # Odoo wraps plain text in <p> tags
+        self.assertIn("Dict response", bot_message.body)
 
     @patch(
         "odoo.addons.discuss_hub.models.discuss_channel.DiscussChannel._notify_thread"

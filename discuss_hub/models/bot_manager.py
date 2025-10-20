@@ -72,6 +72,15 @@ class DiscussHubBotManager(models.Model):
         message_audio_base64 = None
         attachment_id = None
         request_data = None
+        
+        # Check for audio attachments
+        if message.attachment_ids:
+            for attachment in message.attachment_ids:
+                if attachment.mimetype and attachment.mimetype.startswith("audio/"):
+                    message_audio_base64 = attachment.datas.decode("utf-8") if isinstance(attachment.datas, bytes) else attachment.datas
+                    attachment_id = attachment.id
+                    break
+        
         try:
             request_data = requests.post(
                 self.bot_url,
