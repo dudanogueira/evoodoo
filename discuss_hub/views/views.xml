@@ -150,6 +150,7 @@
                             <field name="show_read_receipts" />
                             <field name="notify_reactions" />
                             <field name="import_contacts" />
+                            <field name="create_user_for_visitor" />
                         </group>
                         <group>
                             <field name="status" />
