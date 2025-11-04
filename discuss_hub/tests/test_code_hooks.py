@@ -205,3 +205,65 @@ class TestCodeHooks(TransactionCase):
         self.assertEqual(
             message.body, "<p>Test message</p>", "Message content should be correct"
         )
+
+    @patch("odoo.addons.discuss_hub.models.models.DiscussHubConnector.outgo_message")
+    def test_portal_user_message_does_not_trigger_outgo(self, mock_outgo_message):
+        """Test that messages from portal/public users don't trigger outgo_message"""
+
+        # Create a portal user
+        portal_group = self.env.ref("base.group_portal")
+        portal_user = self.env["res.users"].create(
+            {
+                "name": "Portal User",
+                "login": "portal_user_test",
+                "email": "portal@test.com",
+                "groups_id": [(6, 0, [portal_group.id])],
+            }
+        )
+
+        # Add portal user as member of the channel
+        self.channel.add_members([portal_user.partner_id.id])
+
+        # Post a message as portal user
+        message = self.channel.with_user(portal_user).message_post(
+            body="Portal user message",
+            message_type="comment",
+        )
+
+        # Verify outgo_message was NOT called for portal user
+        self.assertEqual(
+            mock_outgo_message.call_count,
+            0,
+            "outgo_message should NOT be called for portal user messages",
+        )
+        self.assertTrue(message, "Message should be created")
+
+    @patch("odoo.addons.discuss_hub.models.models.DiscussHubConnector.outgo_message")
+    def test_external_partner_message_does_not_trigger_outgo(self, mock_outgo_message):
+        """Test that messages from external partners don't echo back"""
+
+        # Create an external partner (no user)
+        external_partner = self.env["res.partner"].create(
+            {
+                "name": "External Contact",
+                "email": "external@whatsapp.com",
+            }
+        )
+
+        # Add external partner to channel
+        self.channel.add_members([external_partner.id])
+
+        # Post a message as external partner (simulating webhook)
+        message = self.channel.message_post(
+            body="Message from WhatsApp",
+            author_id=external_partner.id,
+            message_type="comment",
+        )
+
+        # Verify outgo_message was NOT called
+        self.assertEqual(
+            mock_outgo_message.call_count,
+            0,
+            "outgo_message should NOT be called for external partner messages",
+        )
+        self.assertTrue(message, "Message should be created")

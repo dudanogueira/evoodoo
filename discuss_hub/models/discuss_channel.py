@@ -126,28 +126,32 @@ class DiscussChannel(models.Model):
         Only sends messages to external platforms when:
         - Channel has a discuss_hub_connector
         - Message was created successfully
-        - Message author is a partner with a system user (internal user)
+        - Message author is an INTERNAL user (not portal/public/external)
         """
         # Call the parent method first to create the message
         message = super().message_post(**kwargs)
 
         # Handle outgoing message to connector (replaces base automation)
-        # Only send if message is from a partner with a system user (not external/bot)
-        if self.discuss_hub_connector and message:
-            # Check if message author has a system user
-            has_system_user = False
-            if message.author_id:
-                has_system_user = bool(
-                    self.env["res.users"].search(
-                        [("partner_id", "=", message.author_id.id)], limit=1
-                    )
-                )
+        # Only send if message is from an internal user
+        if self.discuss_hub_connector and message and message.author_id:
+            # Check if message author has an internal user
+            # (not portal, not public, not external partner)
+            author_user = self.env["res.users"].search(
+                [("partner_id", "=", message.author_id.id)], limit=1
+            )
 
-            if has_system_user:
+            # Only send if user exists and is internal (has base.group_user)
+            is_internal_user = False
+            if author_user:
+                # Check if user has internal user group (not portal/public)
+                is_internal_user = author_user.has_group("base.group_user")
+
+            if is_internal_user:
                 try:
                     _logger.info(
                         f"discuss_channel.message_post: sending outgoing message "
-                        f"({message}) from user {message.author_id.name} to {self}"
+                        f"({message}) from internal user {message.author_id.name} "
+                        f"to {self}"
                     )
                     self.discuss_hub_connector.outgo_message(
                         channel=self, message=message
@@ -160,9 +164,8 @@ class DiscussChannel(models.Model):
             else:
                 _logger.debug(
                     f"discuss_channel.message_post: skipping outgoing message "
-                    f"({message}) - author "
-                    f"{message.author_id.name if message.author_id else 'N/A'} "
-                    f"has no system user"
+                    f"({message}) - author {message.author_id.name} is not "
+                    f"internal user (portal/public/external)"
                 )
 
         return message

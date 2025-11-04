@@ -506,7 +506,7 @@ class TestTypebotBotManager(TestBotManagerBase):
         mock_notify.return_value = None
 
         # Create existing session
-        existing_session = self.env["discuss_hub.bot_manager.session"].create(
+        self.env["discuss_hub.bot_manager.session"].create(
             {
                 "bot_manager_id": self.typebot_bot.id,
                 "channel_id": self.channel.id,
@@ -534,8 +534,17 @@ class TestTypebotBotManager(TestBotManagerBase):
             subtype_xmlid="mail.mt_comment",
         )
 
+        # Manually trigger bot processing
+        self.typebot_bot.outgo(self.channel, self.partner)
+
+        # Verify continue chat was called with correct session ID
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        self.assertIn("existing-session-456", call_args[1]["json"]["sessionId"])
+
+    def test_outgo_not_triggered_when_inactive(self):
         # Create a bot manager marked as inactive, linked to a partner
-        cls.bot_manager = cls.env["discuss_hub.bot_manager"].create(
+        bot_manager = self.env["discuss_hub.bot_manager"].create(
             {
                 "active": False,
                 "bot_type": "generic",
@@ -554,11 +563,10 @@ class TestTypebotBotManager(TestBotManagerBase):
             }
         )
 
-    def test_outgo_not_triggered_when_inactive(self):
         # Ensure generic_handle is NOT called when bot is inactive
         with patch.object(
-            type(self.bot_manager), "generic_handle", autospec=True
+            type(bot_manager), "generic_handle", autospec=True
         ) as mock_generic:
-            result = self.bot_manager.outgo(self.channel, self.partner)
+            result = bot_manager.outgo(self.channel, self.partner)
             self.assertFalse(result, "outgo should return False when bot is inactive")
             mock_generic.assert_not_called()
