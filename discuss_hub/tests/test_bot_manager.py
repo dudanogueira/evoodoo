@@ -574,3 +574,69 @@ class TestTypebotBotManager(TestBotManagerBase):
             result = bot_manager.outgo(self.channel, self.bot_partner)
             self.assertFalse(result, "outgo should return False when bot is inactive")
             mock_generic.assert_not_called()
+
+    def test_outgo_returns_false_when_channel_has_no_messages(self):
+        """Test that outgo returns False when channel has no messages."""
+        # Create a bot manager
+        bot_manager = self.env["discuss_hub.bot_manager"].create(
+            {
+                "active": True,
+                "bot_type": "generic",
+                "bot_url": "http://localhost:9999/echo",
+                "bot_api_key": "dummy",
+                "partner": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Bot Partner",
+                        },
+                    )
+                ],
+            }
+        )
+
+        # Create a channel without messages
+        empty_channel = self.env["discuss.channel"].create(
+            {
+                "name": "Empty Channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        # Ensure outgo returns False when channel has no messages
+        result = bot_manager.outgo(empty_channel, self.bot_partner)
+        self.assertFalse(
+            result, "outgo should return False when channel has no messages"
+        )
+
+    def test_respond_to_internal_direct_messages_default_true(self):
+        """Test that respond_to_internal_direct_messages defaults to True."""
+        bot_manager = self.env["discuss_hub.bot_manager"].create(
+            {
+                "active": True,
+                "bot_type": "generic",
+                "bot_url": "http://localhost:9999/echo",
+                "bot_api_key": "dummy",
+            }
+        )
+        self.assertTrue(
+            bot_manager.respond_to_internal_direct_messages,
+            "respond_to_internal_direct_messages should default to True",
+        )
+
+    def test_respond_to_internal_direct_messages_can_be_disabled(self):
+        """Test that respond_to_internal_direct_messages can be set to False."""
+        bot_manager = self.env["discuss_hub.bot_manager"].create(
+            {
+                "active": True,
+                "bot_type": "generic",
+                "bot_url": "http://localhost:9999/echo",
+                "bot_api_key": "dummy",
+                "respond_to_internal_direct_messages": False,
+            }
+        )
+        self.assertFalse(
+            bot_manager.respond_to_internal_direct_messages,
+            "respond_to_internal_direct_messages should be False when explicitly set",
+        )

@@ -626,6 +626,51 @@
         <field name="name">Bots/Agents</field>
         <field name="res_model">discuss_hub.bot_manager</field>
         <field name="view_mode">kanban,list,form</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <record model="ir.ui.view" id="discuss_hub_form_bot">
+        <field name="name">discuss_hub Bot Form</field>
+        <field name="model">discuss_hub.bot_manager</field>
+        <field name="arch" type="xml">
+            <form string="Bot Manager">
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active"
+                    />
+                    <group>
+                        <group>
+                            <field name="active" widget="boolean_toggle" />
+                            <field name="bot_type" />
+                            <field name="bot_url" />
+                            <field name="bot_api_key" password="True" />
+                        </group>
+                        <group>
+                            <field name="bot_url_timeout" />
+                            <field
+                                name="respond_to_internal_direct_messages"
+                                widget="boolean_toggle"
+                            />
+                            <field name="on_error_message" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Partners" invisible="not id">
+                            <field name="partner">
+                                <list>
+                                    <field name="name" />
+                                    <field name="phone" />
+                                    <field name="email" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
     </record>
 
     <record model="ir.ui.view" id="discuss_hub_list_bot">
@@ -633,9 +678,9 @@
         <field name="model">discuss_hub.bot_manager</field>
         <field name="arch" type="xml">
             <list>
-                <field name="active" />
-                <!-- <field name="user" /> -->
+                <field name="active" widget="boolean_toggle" />
                 <field name="bot_type" />
+                <field name="bot_url" />
             </list>
         </field>
     </record>

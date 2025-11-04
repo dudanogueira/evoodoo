@@ -176,8 +176,10 @@ class DiscussChannel(models.Model):
         This replaces the base automation for bot outgoing.
 
         Only processes bot automation when:
-        - Message author is NOT a bot (does not have a system user)
-        - This prevents infinite loops where bot responses trigger the bot again
+        - Message author is NOT an internal user (not base.group_user), OR
+        - Message author IS an internal user BUT channel is type 'chat' (direct message)
+        - This prevents infinite loops in group channels while allowing DMs to bots
+        - Portal/public users WILL trigger the bot (they are customers)
 
         Bot processing is done with auto-commit to ensure the incoming message
         is saved and visible before the bot processes it.
@@ -189,26 +191,65 @@ class DiscussChannel(models.Model):
         if self.env.context.get("discuss_hub_skip_bot"):
             return result
 
-        # Check if message author is a bot/system user
-        # If author has a system user, skip bot processing to avoid loops
-        is_system_user = False
+        # Check if message author is an internal user (base.group_user)
+        # Internal users are agents/employees who should NOT trigger bots in groups
+        # BUT can trigger bots in direct messages (channel_type='chat')
+        is_internal_user = False
         if message.author_id:
-            is_system_user = bool(
-                self.env["res.users"].search(
-                    [("partner_id", "=", message.author_id.id)], limit=1
-                )
+            author_user = self.env["res.users"].search(
+                [("partner_id", "=", message.author_id.id)], limit=1
+            )
+            if author_user:
+                # Check if user has internal user group (base.group_user)
+                is_internal_user = author_user.has_group("base.group_user")
+
+        # Determine if we should process bot automation
+        # Process bot if:
+        # 1. User is NOT internal (external/portal/public), OR
+        # 2. User IS internal BUT channel is direct message (chat)
+        should_process_bot = False
+
+        if not is_internal_user:
+            # Non-internal users always trigger bot
+            should_process_bot = True
+        elif self.channel_type == "chat":
+            # Internal users trigger bot only in direct messages
+            should_process_bot = True
+            author_name = message.author_id.name
+            _logger.info(
+                f"discuss_channel._notify_thread: internal user {author_name} "
+                f"in direct message channel - bot will be processed"
             )
 
-        # Only process bot automation for messages from external users (no system user)
-        if not is_system_user:
+        if should_process_bot:
             # Handle bot automation (replaces base automation)
             # Check if channel has partners with bots
             partners_with_bot = self.channel_partner_ids.filtered(lambda p: p.bot)
+
+            # If internal user in direct message, filter bots that allow this
+            if is_internal_user and self.channel_type == "chat":
+                partners_with_bot = partners_with_bot.filtered(
+                    lambda p: p.bot.respond_to_internal_direct_messages
+                )
+                if not partners_with_bot:
+                    _logger.debug(
+                        f"discuss_channel._notify_thread: skipping bot processing "
+                        f"- internal user {message.author_id.name} in DM but no bots "
+                        f"configured to respond to internal direct messages"
+                    )
+
+            _logger.info(
+                f"discuss_channel._notify_thread: checking bot automation "
+                f"for {self.name} - channel has {len(self.channel_partner_ids)} "
+                f"partners, {len(partners_with_bot)} with bot configured"
+            )
+
             if partners_with_bot:
                 try:
+                    partner_names = partners_with_bot.mapped("name")
                     _logger.info(
                         f"discuss_channel._notify_thread: processing bot for "
-                        f"{len(partners_with_bot)} partners"
+                        f"{len(partners_with_bot)} partners: {partner_names}"
                     )
 
                     # Commit the transaction to ensure message is visible immediately
@@ -227,9 +268,13 @@ class DiscussChannel(models.Model):
                         f"Error processing bot automation: {e}", exc_info=True
                     )
         else:
-            _logger.debug(
-                f"discuss_channel._notify_thread: skipping bot processing "
-                f"- message from system user {message.author_id.name}"
-            )
+            # Bot not processed
+            if is_internal_user and self.channel_type != "chat":
+                author_name = message.author_id.name if message.author_id else "Unknown"
+                _logger.debug(
+                    f"discuss_channel._notify_thread: skipping bot processing "
+                    f"- message from internal user {author_name} "
+                    f"in group channel (type={self.channel_type})"
+                )
 
         return result

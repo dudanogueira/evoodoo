@@ -14,12 +14,29 @@ _logger = logging.getLogger(__name__)
 
 class DiscussHubBotManager(models.Model):
     """
-    base automation on model: Discuss Channel, event: incoming message
-    domain: [("channel_partner_ids.bot", "!=", False)]
-    partners_with_bot = record.channel_partner_ids.filtered(lambda p: p.bot)
-    last_message = record.message_ids[0]
-    for partner in partners_with_bot:
-        partner.bot.outgo(last_message)
+    Bot Manager for Discuss Hub.
+
+    Integration with discuss.channel:
+    - Bot automation is triggered in discuss.channel._notify_thread()
+    - Only processes messages from NON-INTERNAL users (external, portal, public)
+    - Internal users (base.group_user) trigger bots based on configuration:
+      * In direct messages (channel_type='chat') → Configurable via
+        respond_to_internal_direct_messages
+      * In group channels (channel_type='group') → Never (to avoid loops)
+    - Calls partner.bot.outgo(channel, partner) for each partner with bot
+    - Commits transaction before bot processing to ensure message visibility
+
+    Supported bot types:
+    - generic: Simple HTTP POST with message data
+    - typebot: Full typebot.io integration with session management
+
+    User types that trigger bot:
+    - External users (no Odoo account) → Always ✓
+    - Portal users (customers with limited access) → Always ✓
+    - Public users (public access) → Always ✓
+    - Internal users (agents/employees with base.group_user):
+      * In direct messages (channel_type='chat') → Configurable (default: ✓)
+      * In group channels (channel_type='group') → Never ✗
     """
 
     _name = "discuss_hub.bot_manager"
@@ -60,6 +77,14 @@ class DiscussHubBotManager(models.Model):
     )
     bot_url_timeout = fields.Integer(
         default=360, help="Timeout for the bot URL in seconds.", required=True
+    )
+    respond_to_internal_direct_messages = fields.Boolean(
+        default=True,
+        help=(
+            "If enabled, the bot will respond to direct messages (DMs) "
+            "from internal users. Internal users in group channels will "
+            "never trigger the bot regardless of this setting."
+        ),
     )
     on_error_message = fields.Text(
         default="An error occurred while processing your request. "
@@ -273,140 +298,169 @@ class DiscussHubBotManager(models.Model):
         )
         return request_data
 
-    def outgo(self, channel, partner):
-        """
-        Send a message to the bot.
-        :param message: The message to send.
-        :return: True if the message was sent successfully, False otherwise.
-        """
-        if not self.active:
-            _logger.info(f"Bot {self.id} disabled. Ignoring outgo.")
-            return False
-        message = channel.message_ids[0]
-        # Simulate sending a message to the bot
-        _logger.info(
-            f"Sending message to bot({self.bot_type}) {self.bot_url}: "
-            f"{message} at {channel}"
-        )
+    def _get_latest_message(self, channel):
+        """Get the latest message from channel."""
+        if not channel.message_ids:
+            _logger.warning(f"Bot {self.id}: No messages in channel {channel.name}")
+            return None
+        return channel.message_ids.sorted(key=lambda m: m.create_date, reverse=True)[0]
+
+    def _extract_message_audio(self, message):
+        """Extract audio attachment from message."""
         message_audio_base64 = None
         attachment_id = None
         if message.attachment_ids and "audio" in message.attachment_ids[0].mimetype:
             attachment_id = message.attachment_ids[0].id
             message_audio_base64 = message.attachment_ids[0].datas.decode("utf-8")
+        return message_audio_base64, attachment_id
+
+    def outgo(self, channel, partner):
+        """
+        Send a message to the bot.
+        :param channel: The channel where the message was posted.
+        :param partner: The partner associated with the bot.
+        :return: True if the message was sent successfully, False otherwise.
+        """
+        _logger.info(
+            f"Bot {self.id} ({self.bot_type}): outgo called for channel "
+            f"{channel.name} and partner {partner.name}"
+        )
+
+        if not self.active:
+            _logger.warning(f"Bot {self.id} disabled. Ignoring outgo.")
+            return False
+
+        # Get the last message from the channel
+        message = self._get_latest_message(channel)
+        if not message:
+            return False
+
+        body_preview = message.body[:100] if message.body else "No body"
+        _logger.info(
+            f"Bot {self.id} ({self.bot_type}): processing message {message.id} "
+            f"from {message.author_id.name}: {body_preview}..."
+        )
+
+        message_audio_base64, attachment_id = self._extract_message_audio(message)
 
         if self.bot_type == "generic":
-            generic_handle = self.generic_handle(message, channel, partner)
-            _logger.info(
-                f"Message to bot({self.bot_type}) {self.bot_url}: "
-                f"{message} at {channel} was sent: {generic_handle}"
-            )
-            _logger.info(f"Handling bot type {self.bot_type} for bot {self.id}")
-            return True
+            return self._handle_generic_bot(message, channel, partner)
         if self.bot_type == "typebot":
-            # Handle typebot specific logic here
-            # try to get the latest session for this channel
-            # for this bot, and not expired
-            session_id = None
-            payload = {
-                "message": {"type": "text", "text": html2plaintext(str(message.body))},
-                "prefilledVariables": {
-                    "message_body": html2plaintext(str(message.body)),
-                    "message_author_name": message.author_id.name,
-                    "message_author_id": message.author_id.id,
-                    "message_audio_base64": message_audio_base64,
-                    "attachment_id": attachment_id,
-                    "channel_id": channel.id,
-                },
-                "textBubbleContentFormat": "markdown",
-            }
-            logging.info(
-                f"Getting Latest session for bot {self} at channel {channel.id}..."
+            return self._handle_typebot(
+                message, channel, partner, message_audio_base64, attachment_id
             )
-            latest_session = self.typebot_get_latest_session(channel)
-            new_session = None
-            messages = []
-            # no last session
-            if not latest_session:
-                logging.info(
-                    f"BOTMANAGER: Session for {self} not found, "
-                    + f"creating with payload {payload}"
-                )
-                try:
-                    new_session = self.typebot_start_chat(channel, payload)
-                    if new_session.status_code != 200 or not new_session.content:
-                        logging.warning(
-                            "BOTMANAGER: Failed to create "
-                            + f"session for {self}: {new_session.json()}"
-                        )
-                        return False
-                    else:
-                        logging.info(
-                            f"BOTMANAGER: new session for {self}: {new_session.json()}"
-                        )
-                        session_id = new_session.json().get("sessionId")
-                        messages = new_session.json().get("messages", [])
-                        self.typebot_register_new_session(channel, session_id)
-                except Exception as e:
-                    logging.error(
-                        f"BOTMANAGER: Failed to create session for {self}: {e}"
+        return True
+
+    def _handle_generic_bot(self, message, channel, partner):
+        """Handle generic bot type."""
+        generic_handle = self.generic_handle(message, channel, partner)
+        _logger.info(
+            f"Message to bot({self.bot_type}) {self.bot_url}: "
+            f"{message} at {channel} was sent: {generic_handle}"
+        )
+        _logger.info(f"Handling bot type {self.bot_type} for bot {self.id}")
+        return True
+
+    def _handle_typebot(self, message, channel, partner, audio_base64, attachment_id):
+        """Handle typebot bot type."""
+        payload = {
+            "message": {"type": "text", "text": html2plaintext(str(message.body))},
+            "prefilledVariables": {
+                "message_body": html2plaintext(str(message.body)),
+                "message_author_name": message.author_id.name,
+                "message_author_id": message.author_id.id,
+                "message_audio_base64": audio_base64,
+                "attachment_id": attachment_id,
+                "channel_id": channel.id,
+            },
+            "textBubbleContentFormat": "markdown",
+        }
+        logging.info(
+            f"Getting Latest session for bot {self} at channel {channel.id}..."
+        )
+        latest_session = self.typebot_get_latest_session(channel)
+        new_session = None
+        messages = []
+        # no last session
+        if not latest_session:
+            logging.info(
+                f"BOTMANAGER: Session for {self} not found, "
+                + f"creating with payload {payload}"
+            )
+            try:
+                new_session = self.typebot_start_chat(channel, payload)
+                if new_session.status_code != 200 or not new_session.content:
+                    logging.warning(
+                        "BOTMANAGER: Failed to create "
+                        + f"session for {self}: {new_session.json()}"
                     )
-            else:
-                logging.info(
-                    "BOTMANAGER: Found existing session for bot "
-                    + f"{self.id}: {latest_session.session_id}. Continuing chat"
-                )
-                session_id = latest_session.session_id
-                # previous session found, try to continue chat
-                continue_chat = self.typebot_continue_chat(channel, session_id, payload)
-                if continue_chat.ok:
-                    messages = continue_chat.json().get("messages", [])
-                # session is invalid, create new one
-                elif continue_chat.status_code == 404:
-                    new_session = self.typebot_start_chat(channel, payload)
-                    messages = new_session.json().get("messages", [])
+                    return False
+                else:
+                    logging.info(
+                        f"BOTMANAGER: new session for {self}: {new_session.json()}"
+                    )
                     session_id = new_session.json().get("sessionId")
+                    messages = new_session.json().get("messages", [])
                     self.typebot_register_new_session(channel, session_id)
+            except Exception as e:
+                logging.error(f"BOTMANAGER: Failed to create session for {self}: {e}")
+        else:
+            logging.info(
+                "BOTMANAGER: Found existing session for bot "
+                + f"{self.id}: {latest_session.session_id}. Continuing chat"
+            )
+            session_id = latest_session.session_id
+            # previous session found, try to continue chat
+            continue_chat = self.typebot_continue_chat(channel, session_id, payload)
+            if continue_chat.ok:
+                messages = continue_chat.json().get("messages", [])
+            # session is invalid, create new one
+            elif continue_chat.status_code == 404:
+                new_session = self.typebot_start_chat(channel, payload)
+                messages = new_session.json().get("messages", [])
+                session_id = new_session.json().get("sessionId")
+                self.typebot_register_new_session(channel, session_id)
+            else:
+                logging.warning(
+                    f"BOTMANAGER: Failed to continue {self}: {continue_chat.json()}"
+                )
+
+        for message in messages:
+            body = ""
+            attachments = []
+            logging.info(
+                f"BOTMANAGER {self.id}, session_id:{session_id}, "
+                + f"Message from bot: {message}"
+            )
+            if message.get("type") == "text":
+                body = message.get("content", {}).get("markdown")
+            # TODO: try to cache those files as they will be repeating
+            if message.get("type") in ["image", "audio", "video", "file"]:
+                url = message.get("content", {}).get("url")
+                query = requests.get(url, timeout=self.bot_url_timeout)
+                if query.ok:
+                    content_type = query.headers["Content-Type"]
+                    if message.get("type") == "audio":
+                        content_type = "audio.mp3"
+                    if message.get("type") == "video":
+                        content_type = "video.mp4"
+                    attachments.append((content_type, query.content))
                 else:
                     logging.warning(
-                        f"BOTMANAGER: Failed to continue {self}: {continue_chat.json()}"
+                        f"BOTMANAGER {self.id}, session_id:{session_id}, "
+                        + f"Failed to download media: {query.status_code}"
                     )
-
-            for message in messages:
-                body = ""
-                attachments = []
-                logging.info(
-                    f"BOTMANAGER {self.id}, session_id:{session_id}, "
-                    + f"Message from bot: {message}"
-                )
-                if message.get("type") == "text":
-                    body = message.get("content", {}).get("markdown")
-                # TODO: try to cache those files as they will be repeating
-                if message.get("type") in ["image", "audio", "video", "file"]:
-                    url = message.get("content", {}).get("url")
-                    query = requests.get(url, timeout=self.bot_url_timeout)
-                    if query.ok:
-                        content_type = query.headers["Content-Type"]
-                        if message.get("type") == "audio":
-                            content_type = "audio.mp3"
-                        if message.get("type") == "video":
-                            content_type = "video.mp4"
-                        attachments.append((content_type, query.content))
-                    else:
-                        logging.warning(
-                            f"BOTMANAGER {self.id}, session_id:{session_id}, "
-                            + f"Failed to download media: {query.status_code}"
-                        )
-                # handle typebot markdown. first, replace \n to <br>
-                body = body.replace("\n", "<br>")
-                channel.with_context(discuss_hub_skip_bot=True).message_post(
-                    body=Markup(body),
-                    author_id=partner.id,
-                    message_type="comment",
-                    subtype_xmlid="mail.mt_comment",
-                    attachments=attachments,
-                )
-                # Note: outgo_message is automatically called by message_post() hook
-                # if the author has a system user (see discuss_channel.py)
+            # handle typebot markdown. first, replace \n to <br>
+            body = body.replace("\n", "<br>")
+            channel.with_context(discuss_hub_skip_bot=True).message_post(
+                body=Markup(body),
+                author_id=partner.id,
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+                attachments=attachments,
+            )
+            # Note: outgo_message is automatically called by message_post() hook
+            # if the author has a system user (see discuss_channel.py)
         return True
 
     def process_payload(self, incoming_payload):
