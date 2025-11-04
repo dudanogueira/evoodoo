@@ -67,10 +67,23 @@ class DiscussHubBotManager(models.Model):
         help="Message to send when an error occurs while processing a request.",
     )
 
-    def generic_handle(self, message, channel, partner):
-        timed_out = False
-        message_audio_base64 = None
-        attachment_id = None
+    def _extract_audio_attachment(self, message):
+        """Extract audio attachment data from message."""
+        if not message.attachment_ids:
+            return None, None
+
+        for attachment in message.attachment_ids:
+            if attachment.mimetype and attachment.mimetype.startswith("audio/"):
+                message_audio_base64 = (
+                    attachment.datas.decode("utf-8")
+                    if isinstance(attachment.datas, bytes)
+                    else attachment.datas
+                )
+                return message_audio_base64, attachment.id
+        return None, None
+
+    def _send_bot_request(self, message, channel, message_audio_base64, attachment_id):
+        """Send request to bot API and return response or None on failure."""
         try:
             request_data = requests.post(
                 self.bot_url,
@@ -82,53 +95,110 @@ class DiscussHubBotManager(models.Model):
                     "attachment_id": attachment_id,
                     "channel_id": channel.id,
                 },
-                timeout=self.bot_url_timeout,  # Set a timeout for the request
+                timeout=self.bot_url_timeout,
             )
+            return request_data
         except requests.Timeout as e:
             _logger.error(f"Timeout while sending message to bot {self.bot_url}: {e}")
-            timed_out = True
-        if request_data.status_code != 200 or timed_out or not request_data.content:
+            return None
+
+    def _handle_bot_error(self, channel, partner, request_data=None):
+        """Handle bot API errors by sending error message to channel."""
+        if request_data:
             _logger.error(f"Failed to send message to bot {self}: {request_data.text}")
-            # sending default error message
-            error_message = channel.message_post(
-                body=self.on_error_message,
-                author_id=partner.id,
-                message_type="comment",
-                subtype_xmlid="mail.mt_comment",
+        channel.with_context(discuss_hub_skip_bot=True).message_post(
+            body=self.on_error_message,
+            author_id=partner.id,
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+
+    def _normalize_bot_response(self, request_data):
+        """Parse and normalize bot response to list format."""
+        try:
+            response_data = request_data.json()
+        except ValueError as e:
+            _logger.error(f"Failed to parse JSON response from bot {self}: {e}")
+            return None
+
+        # Normalize response to list format
+        if isinstance(response_data, str):
+            return [{"text": response_data}]
+        elif isinstance(response_data, dict):
+            return [response_data]
+        elif isinstance(response_data, list):
+            return response_data
+        else:
+            _logger.error(
+                f"Unexpected response format from bot {self}: {type(response_data)}"
             )
-            channel.discuss_hub_connector.outgo_message(channel, error_message)
+            return None
+
+    def _process_message_attachments(self, received_message):
+        """Process attachments from received message."""
+        attachments = []
+        for content_type, content in received_message.items():
+            if content_type == "text":
+                continue
+
+            # Map content types to file extensions
+            if content_type == "audio":
+                content_type = "audio.mp3"
+            elif content_type == "video":
+                content_type = "video.mp4"
+            elif content_type == "pdf":
+                content_type = "application.pdf"
+
+            try:
+                decoded_data = base64.b64decode(content)
+                attachments.append((content_type, decoded_data))
+            except ValueError as e:
+                _logger.warning(f"Failed to decode base64 content {content_type}: {e}.")
+        return attachments
+
+    def generic_handle(self, message, channel, partner):
+        """Handle generic bot message processing."""
+        # Extract audio attachment if present
+        message_audio_base64, attachment_id = self._extract_audio_attachment(message)
+
+        # Send request to bot
+        request_data = self._send_bot_request(
+            message, channel, message_audio_base64, attachment_id
+        )
+
+        # Check for errors
+        if (
+            not request_data
+            or request_data.status_code != 200
+            or not request_data.content
+        ):
+            self._handle_bot_error(channel, partner, request_data)
             return True
 
-        # for each message
-        for received_message in request_data.json():
-            attachments = []
-            # go thru each type, except text
-            for content_type, content in received_message.items():
-                if content_type != "text":
-                    if content_type == "audio":
-                        content_type = "audio.mp3"
-                    elif content_type == "video":
-                        content_type = "video.mp4"
-                    elif content_type == "pdf":
-                        content_type = "application.pdf"
-                    try:
-                        decoded_data = base64.b64decode(content)
-                        attachments.append((content_type, decoded_data))
-                    except ValueError as e:
-                        _logger.warning(
-                            f"""Failed to decode base64 content
-                            {content_type}: {e}."""
-                        )
-                        pass
+        # Parse and normalize response
+        response_data = self._normalize_bot_response(request_data)
+        if response_data is None:
+            return False
 
-            new_message = channel.message_post(
+        # Process each message in response
+        for received_message in response_data:
+            if not isinstance(received_message, dict):
+                _logger.warning(
+                    f"Skipping non-dict message from bot {self}: {received_message}"
+                )
+                continue
+
+            attachments = self._process_message_attachments(received_message)
+
+            new_message = channel.with_context(discuss_hub_skip_bot=True).message_post(
                 body=received_message.get("text", ""),
                 author_id=partner.id,
                 message_type="comment",
                 subtype_xmlid="mail.mt_comment",
                 attachments=attachments,
             )
-            channel.discuss_hub_connector.outgo_message(channel, new_message)
+            _logger.info(f"Bot message created: {new_message.id}")
+        return True
 
     def typebot_get_latest_session(self, channel):
         latest_session = self.env["discuss_hub.bot_manager.session"].search(
@@ -214,7 +284,10 @@ class DiscussHubBotManager(models.Model):
             return False
         message = channel.message_ids[0]
         # Simulate sending a message to the bot
-        _logger.info(f"Sending message to bot {self.bot_url}: {message} at {channel}")
+        _logger.info(
+            f"Sending message to bot({self.bot_type}) {self.bot_url}: "
+            f"{message} at {channel}"
+        )
         message_audio_base64 = None
         attachment_id = None
         if message.attachment_ids and "audio" in message.attachment_ids[0].mimetype:
@@ -222,8 +295,13 @@ class DiscussHubBotManager(models.Model):
             message_audio_base64 = message.attachment_ids[0].datas.decode("utf-8")
 
         if self.bot_type == "generic":
-            self.generic_handle(message, channel, partner)
-
+            generic_handle = self.generic_handle(message, channel, partner)
+            _logger.info(
+                f"Message to bot({self.bot_type}) {self.bot_url}: "
+                f"{message} at {channel} was sent: {generic_handle}"
+            )
+            _logger.info(f"Handling bot type {self.bot_type} for bot {self.id}")
+            return True
         if self.bot_type == "typebot":
             # Handle typebot specific logic here
             # try to get the latest session for this channel
@@ -320,32 +398,16 @@ class DiscussHubBotManager(models.Model):
                         )
                 # handle typebot markdown. first, replace \n to <br>
                 body = body.replace("\n", "<br>")
-                new_message = channel.message_post(
+                channel.with_context(discuss_hub_skip_bot=True).message_post(
                     body=Markup(body),
                     author_id=partner.id,
                     message_type="comment",
                     subtype_xmlid="mail.mt_comment",
                     attachments=attachments,
                 )
-                channel.discuss_hub_connector.outgo_message(channel, new_message)
+                # Note: outgo_message is automatically called by message_post() hook
+                # if the author has a system user (see discuss_channel.py)
         return True
-
-    # def process_payload(self, payload):
-    #     """
-    #     Process an incoming payload from the bot.
-    #     :param payload: The payload to process.
-    #     :return: A response indicating the result of the processing.
-    #     """
-    #     _logger.info(f"Processing payload for bot manager {self.id}: {payload}")
-    #     if payload.get("action") == "forward" and payload.get("channel_id"):
-    #         # forward action at specific channel_id
-    #         if payload.get("agent"):
-    #             # Handle agent-specific logic here
-    #             pass
-    #     return {
-    #               "status": "success", "detail": "Payload processed successfully.",
-    #               "received": payload
-    #       }
 
     def process_payload(self, incoming_payload):
         """Process routing payload using DiscussHubRoutingManager"""

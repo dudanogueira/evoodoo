@@ -169,16 +169,20 @@ class TestDiscussHubConnectorIntegration(TransactionCase):
 
     def test_action_open_start(self):
         """Test the action_open_start method which opens the connector status dialog"""
-        with patch.object(self.connector, "get_status") as mock_status:
-            # Prepare mock data
-            mock_status.return_value = {
+        # Mock the plugin's get_status method instead of the connector's
+        plugin = self.connector.get_plugin()
+
+        with patch.object(
+            type(plugin),
+            "get_status",
+            return_value={
                 "status": "closed",
                 "qrcode": "data:image/png;base64,abc123",
                 "success": True,
                 "plugin_name": "evolution",
                 "connector": str(self.connector),
-            }
-
+            },
+        ):
             # Call the method to be tested
             result = self.connector.action_open_start()
 

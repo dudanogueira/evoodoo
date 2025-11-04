@@ -1,6 +1,6 @@
-=======
+===========
 discuss_hub
-=======
+===========
 
 .. 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -22,8 +22,8 @@ discuss_hub
 
 |badge1| |badge2| |badge3|
 
-This is Discuss Hub. A framework to income and outcome third party messages
-in Odoo.
+This is DiscussHub. A framework to income and outcome third party
+messages in Odoo.
 
 **Table of contents**
 
@@ -38,9 +38,21 @@ Development
 To run the tests, You can use Docker to set up an Odoo instance with the
 necessary dependencies.
 
-docker compose run --rm odoo odoo --dev=all --db-filter=^test_only$ -d
-test_only --stop-after-init --test-enable --without-demo=all -i discuss_hub
---test-tags /discuss_hub
+:literal:`\`bash docker compose -f compose-dev.yaml run --rm odoo odoo --dev=all --db-filter='^test_only$' -d test_only --stop-after-init --test-enable --without-demo=all -i discuss_hub --test-tags /discuss_hub`\ \`
+
+# Run pre-commit locally without changing the addon README:
+:literal:`\`bash SKIP="oca-gen-addon-readme" pre-commit run --all-files --show-diff-on-failure --color=always`\ \`
+
+# Run shell to play with the code
+:literal:`\`bash docker compose run --rm odoo odoo shell -d odoo`\ \`
+
+# N8N
+
+to export N8N Flows:
+:literal:`` docker compose exec -u node -it n8n sh -c "n8n export:workflow --all > /n8n-workflows.yaml"`\ \`
+
+and to import and enable all workflows:
+:literal:`` docker compose exec -u node -it n8n sh -c "n8n import:workflow --input=/n8n-workflows.yaml" docker compose exec -u node -it n8n sh -c "n8n update:workflow --all --active=true"`\ \`
 
 Bug Tracker
 ===========
@@ -58,8 +70,7 @@ Credits
 Authors
 -------
 
-* Diego Santos
-* Duda Nogueira
+* Discuss Hub Community
 
 Maintainers
 -----------

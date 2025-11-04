@@ -227,7 +227,7 @@ class DiscussHubRoutingManager(models.TransientModel):
                     # add the member as user
                     channel.with_user(user).add_members([selected_actor.id])
             # add note
-            if selected_note:
+            if selected_note and selected_actor:
                 # run with sudo
                 channel.sudo().message_post(
                     author_id=from_partner.id if from_partner else None,

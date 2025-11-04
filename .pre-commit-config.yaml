@@ -133,6 +133,8 @@ repos:
           - --rcfile=.pylintrc
           - --exit-zero
         verbose: true
+        exclude: ^(create_users_and_team\.py|test_channel_membership\.py)$
       - id: pylint_odoo
         args:
           - --rcfile=.pylintrc-mandatory
+        exclude: ^(create_users_and_team\.py|test_channel_membership\.py)$

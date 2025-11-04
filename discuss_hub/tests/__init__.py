@@ -6,4 +6,8 @@ from . import (
     test_routing_manager,
     test_base_extra,
     test_evolution,
+    test_code_hooks,
+    test_models,
+    test_bot_manager,
+    test_res_partner,
 )

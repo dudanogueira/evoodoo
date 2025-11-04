@@ -12,6 +12,18 @@
 - [[#Troubleshooting]]
 - [[#Contribuição]]
 
+### 📚 Documentação Adicional
+
+- 🔄 **[Migração para Hooks Nativos](./Migration-BaseAutomations-to-CodeHooks.md)** -
+  Guia completo de migração
+- 📊 **[Comparação: Automações vs Hooks](./Comparison-Automations-vs-Hooks.md)** -
+  Análise visual das mudanças
+- ✅ **[Checklist Pós-Migração](./Post-Migration-Checklist.md)** - Verificações após
+  atualização
+- ❓ **[FAQ - Migração](./FAQ-Migration-Hooks.md)** - Perguntas frequentes sobre hooks
+- 🔌 **[Desenvolvimento de Plugins](./Plugin%20Development.md)** - Como criar plugins
+- 🐛 **[Troubleshooting](./Troubleshooting.md)** - Resolução de problemas comuns
+
 ---
 
 ## 📖 Visão Geral
@@ -84,6 +96,11 @@ docker compose -f compose-dev.yaml restart n8n
 
 ## 🏗️ Arquitetura
 
+> **📢 Importante**: A partir da versão atual, o Discuss Hub não usa mais automações
+> base do Odoo. Toda a lógica de webhooks e integrações foi migrada para hooks nativos
+> em Python para melhor performance e manutenibilidade. Veja o
+> [guia de migração](./Migration-BaseAutomations-to-CodeHooks.md) para mais detalhes.
+
 ```mermaid
 graph TD
     A[Webhook Externo] --> B[Controller HTTP]
@@ -94,9 +111,14 @@ graph TD
     F --> G[Discuss Channel]
     G --> H[Mail Message]
 
-    I[N8N Workflows] --> J[Automações]
-    J --> K[Base Automation]
-    K --> L[Ações Automatizadas]
+    I[message_post Hook] --> J[Outgoing Message]
+    J --> C
+
+    K[_notify_thread Hook] --> L[Bot Automation]
+    L --> M[Bot Manager]
+
+    N[create/write Hook] --> O[Outgoing Reaction]
+    O --> C
 ```
 
 ### 🧩 Componentes Principais
@@ -124,8 +146,9 @@ graph TD
 
 #### 4. **Models Estendidos**
 
-- [[Discuss Channel Model|discuss_channel.py]] - Extensões do canal
+- [[Discuss Channel Model|discuss_channel.py]] - Extensões do canal + hooks de mensagens
 - [[Mail Message Model|mail_message.py]] - Processamento de mensagens
+- [[Mail Message Reaction Model|mail_message_reaction.py]] - Hooks de reações
 - [[Res Partner Model|res_partner.py]] - Integração com contatos
 
 ---

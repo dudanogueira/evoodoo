@@ -9,7 +9,7 @@
     "application": True,
     "installable": True,
     # any module necessary for this one to work correctly
-    "depends": ["base", "mail", "base_automation", "crm"],
+    "depends": ["base", "mail", "crm"],
     # always loaded
     "data": [
         "security/security.xml",
@@ -17,8 +17,6 @@
         "views/views.xml",
         "views/templates.xml",
         "views/res_partner_view.xml",
-        # initial base_automation
-        "datas/base_automation.xml",
         # wizards
         "wizard/mail_discuss_channel_forward.xml",
         "wizard/mail_discuss_channel_archive.xml",
