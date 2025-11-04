@@ -49,7 +49,6 @@ class DiscussHubConnector(models.Model):
         required=True,
     )
     create_user_for_visitor = fields.Selection(
-        
         selection=[
             ("none", "Do not Create User"),
             ("portal", "Create Portal User"),
@@ -57,7 +56,10 @@ class DiscussHubConnector(models.Model):
         ],
         string="Create User for Visitor",
         default="none",
-        help="Define if a user should be created for the visitor and what type of user will be created."
+        help=(
+            "Define if a user should be created for the visitor and what type of "
+            "user will be created."
+        ),
     )
     url = fields.Char(required=False)
     api_key = fields.Char(required=False)
@@ -225,7 +227,7 @@ class DiscussHubConnector(models.Model):
         for connector in self:
             status = connector.get_status()
             if status:
-                print(status)
+                _logger.debug("Connector status: %s", status)
                 connector.status = status.get("status", "not_found")
                 connector.qr_code_base64 = status.get("qr_code_base64", None)
 

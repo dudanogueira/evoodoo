@@ -212,7 +212,11 @@ class Plugin:
                     [("partner_id", "=", parent_partner.id)], limit=1
                 )
                 if not user_exists:
-                    group_xml_id = "base.group_portal" if user_type == "portal" else "base.group_public"
+                    group_xml_id = (
+                        "base.group_portal"
+                        if user_type == "portal"
+                        else "base.group_public"
+                    )
                     group = self.connector.env.ref(group_xml_id).id
                     user_vals = {
                         "name": parent_partner.name,
@@ -245,11 +249,15 @@ class Plugin:
             # Criação de usuário conforme opção do conector
             user_type = self.connector.create_user_for_visitor
             if user_type in ("portal", "public"):
-                user_exists = self.connector.env["res.users"].search([
-                    ("partner_id", "=", parent_partner.id)
-                ], limit=1)
+                user_exists = self.connector.env["res.users"].search(
+                    [("partner_id", "=", parent_partner.id)], limit=1
+                )
                 if not user_exists:
-                    group_xml_id = "base.group_portal" if user_type == "portal" else "base.group_public"
+                    group_xml_id = (
+                        "base.group_portal"
+                        if user_type == "portal"
+                        else "base.group_public"
+                    )
                     group = self.connector.env.ref(group_xml_id).id
                     user_vals = {
                         "name": parent_partner.name,

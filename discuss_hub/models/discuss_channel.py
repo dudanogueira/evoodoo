@@ -20,7 +20,6 @@ class DiscussChannel(models.Model):
         string="Discuss Hub Outgoing Destination for this channel"
     )
     is_current_user_member = fields.Boolean(
-        string="Is Current User Member",
         compute="_compute_is_current_user_member",
         store=False,
     )

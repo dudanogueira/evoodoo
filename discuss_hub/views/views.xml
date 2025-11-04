@@ -229,7 +229,11 @@
 
     <!-- Top menu item -->
 
-    <menuitem name="Discuss Hub" id="discuss_hub.menu_root" groups="discuss_hub.group_discuss_hub_user" />
+    <menuitem
+        name="Discuss Hub"
+        id="discuss_hub.menu_root"
+        groups="discuss_hub.group_discuss_hub_user"
+    />
 
     <!-- menu categories -->
 
@@ -294,9 +298,12 @@
 
                             <div class="mt-2">
                                 <small>
-                                    Connector: <field name="discuss_hub_connector" /><br />
+                                    Connector: <field name="discuss_hub_connector" /><br
+                                />
                                     Created: <field name="create_date" /><br />
-                                    Member: <t t-esc="record.is_current_user_member.raw_value ? 'Yes' : 'No'" />
+                                    Member: <t
+                                    t-esc="record.is_current_user_member.raw_value ? 'Yes' : 'No'"
+                                />
                                 </small>
                             </div>
 
@@ -304,7 +311,10 @@
                             <div class="mt-2">
                                 <strong>Members:</strong>
                                 <div class="mt-1">
-                                    <field name="channel_partner_ids" widget="many2many_tags" />
+                                    <field
+                                        name="channel_partner_ids"
+                                        widget="many2many_tags"
+                                    />
                                 </div>
                             </div>
 
@@ -394,7 +404,10 @@
         <field name="sequence" eval="1" />
     </record>
 
-    <record id="discuss_hub_action_view_list_channels" model="ir.actions.act_window.view">
+    <record
+        id="discuss_hub_action_view_list_channels"
+        model="ir.actions.act_window.view"
+    >
         <field name="act_window_id" ref="action_window_list_channels" />
         <field name="view_mode">list</field>
         <field name="view_id" ref="discuss_hub_channel_list" />
@@ -458,7 +471,11 @@
                             class="oe_stat_button"
                             icon="fa-archive"
                         >
-                            <field name="active" widget="boolean_button" options='{"terminology": "archive"}' />
+                            <field
+                                name="active"
+                                widget="boolean_button"
+                                options='{"terminology": "archive"}'
+                            />
                         </button>
                     </div>
                     <group>
@@ -493,10 +510,12 @@
                                 />
                             </group>
                             <separator string="Channel Members" />
-                            <field name="channel_member_ids" 
-                                   mode="tree"
-                                   context="{'tree_view_ref': 'discuss_hub.discuss_hub_channel_member_tree'}"
-                                   options="{'no_create': True, 'no_quick_create': True}">
+                            <field
+                                name="channel_member_ids"
+                                mode="tree"
+                                context="{'tree_view_ref': 'discuss_hub.discuss_hub_channel_member_tree'}"
+                                options="{'no_create': True, 'no_quick_create': True}"
+                            >
                                 <list>
                                     <field name="partner_id" />
                                     <button
