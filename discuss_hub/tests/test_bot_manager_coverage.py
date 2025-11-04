@@ -69,7 +69,9 @@ class TestBotManagerCoverage(TransactionCase):
         res = self.bot.process_payload({"action": "forward", "channel_id": 999999})
         self.assertIn("error", res)
         # Team inactive or not found
-        team = self.env["discuss_hub.routing_team"].create({"name": "T", "active": False})
+        team = self.env["discuss_hub.routing_team"].create(
+            {"name": "T", "active": False}
+        )
         res = self.bot.process_payload(
             {"action": "forward", "channel_id": self.channel.id, "team_id": team.id}
         )
@@ -89,7 +91,10 @@ class TestBotManagerCoverage(TransactionCase):
         self.assertEqual(res.get("channel_id"), self.channel.id)
         # Ensure the agent got access (membership exists)
         member = self.env["discuss.channel.member"].search(
-            [("channel_id", "=", self.channel.id), ("partner_id", "=", self.env.user.partner_id.id)],
+            [
+                ("channel_id", "=", self.channel.id),
+                ("partner_id", "=", self.env.user.partner_id.id),
+            ],
             limit=1,
         )
         self.assertTrue(member, "Expected selected agent to be added as member")
@@ -104,7 +109,9 @@ class TestBotManagerCoverage(TransactionCase):
                 last = self.channel.message_ids[0]
                 self.bot.generic_handle(last, self.channel, self.bot_partner)
         # Assert: an error message was posted and sent out via connector
-        created = self.channel.message_ids.filtered(lambda m: m.body == self.bot.on_error_message)
+        created = self.channel.message_ids.filtered(
+            lambda m: m.body == self.bot.on_error_message
+        )
         self.assertTrue(created, "Expected default on_error_message to be posted")
         dummy.outgo_message.assert_called()  # connector invoked
 
@@ -120,14 +127,18 @@ class TestBotManagerCoverage(TransactionCase):
                 "image": "!invalid!",  # will be skipped
             }
         ]
-        ok_response = SimpleNamespace(status_code=200, content=b"x", json=lambda: payload)
+        ok_response = SimpleNamespace(
+            status_code=200, content=b"x", json=lambda: payload
+        )
         with patch("requests.post", return_value=ok_response):
             patcher, dummy = self._patch_connector_plugin()
             with patcher:
                 last = self.channel.message_ids[0]
                 self.bot.generic_handle(last, self.channel, self.bot_partner)
         # New message posted by bot with 3 attachments (audio, video, pdf)
-        bot_msgs = self.channel.message_ids.filtered(lambda m: m.author_id == self.bot_partner)
+        bot_msgs = self.channel.message_ids.filtered(
+            lambda m: m.author_id == self.bot_partner
+        )
         # The most recent bot message
         new_msg = bot_msgs[0]
         self.assertIn("OK", (new_msg.body or ""))
@@ -135,9 +146,15 @@ class TestBotManagerCoverage(TransactionCase):
         dummy.outgo_message.assert_called()
 
     def test_typebot_continue_chat_builds_url_and_strips_prefilled(self):
-        # Ensure URL is rebuilt to sessions/<id>/continueChat and prefilledVariables removed
-        self.bot.write({"bot_type": "typebot", "bot_url": "http://host/api/v1/typebots/odoo/"})
-        payload = {"message": {"type": "text", "text": "hi"}, "prefilledVariables": {"x": 1}}
+        # Ensure URL is rebuilt to sessions/<id>/continueChat
+        # and prefilledVariables removed
+        self.bot.write(
+            {"bot_type": "typebot", "bot_url": "http://host/api/v1/typebots/odoo/"}
+        )
+        payload = {
+            "message": {"type": "text", "text": "hi"},
+            "prefilledVariables": {"x": 1},
+        }
 
         captured = {}
 
@@ -145,20 +162,33 @@ class TestBotManagerCoverage(TransactionCase):
             captured["url"] = url
             captured["headers"] = headers
             captured["json"] = json
-            return SimpleNamespace(ok=True, status_code=200, json=lambda: {"messages": []})
+            return SimpleNamespace(
+                ok=True, status_code=200, json=lambda: {"messages": []}
+            )
 
         with patch("requests.post", side_effect=fake_post):
-            resp = self.bot.typebot_continue_chat(self.channel, "sess123", dict(payload))
+            resp = self.bot.typebot_continue_chat(
+                self.channel, "sess123", dict(payload)
+            )
         self.assertTrue(resp.ok)
-        self.assertTrue(captured["url"].endswith("/api/v1/sessions/sess123/continueChat"))
+        self.assertTrue(
+            captured["url"].endswith("/api/v1/sessions/sess123/continueChat")
+        )
         self.assertNotIn("prefilledVariables", captured["json"])  # removed
 
     def test_outgo_typebot_new_session_posts_text(self):
         # Prepare a bot set to typebot
-        self.bot.write({"bot_type": "typebot", "bot_url": "http://host/api/v1/typebots/odoo/"})
+        self.bot.write(
+            {"bot_type": "typebot", "bot_url": "http://host/api/v1/typebots/odoo/"}
+        )
 
         # Mock session fetch to return no session
-        with patch.object(type(self.bot), "typebot_get_latest_session", autospec=True, return_value=False):
+        with patch.object(
+            type(self.bot),
+            "typebot_get_latest_session",
+            autospec=True,
+            return_value=False,
+        ):
             # Mock start_chat to return a new session with one text message
             new_session_payload = {
                 "sessionId": "sess42",
@@ -166,16 +196,27 @@ class TestBotManagerCoverage(TransactionCase):
                     {"type": "text", "content": {"markdown": "Line1\nLine2"}},
                 ],
             }
-            start_resp = SimpleNamespace(status_code=200, content=b"x", json=lambda: new_session_payload)
-            with patch.object(type(self.bot), "typebot_start_chat", autospec=True, return_value=start_resp):
-                with patch.object(type(self.bot), "typebot_register_new_session", autospec=True):
+            start_resp = SimpleNamespace(
+                status_code=200, content=b"x", json=lambda: new_session_payload
+            )
+            with patch.object(
+                type(self.bot),
+                "typebot_start_chat",
+                autospec=True,
+                return_value=start_resp,
+            ):
+                with patch.object(
+                    type(self.bot), "typebot_register_new_session", autospec=True
+                ):
                     # Avoid real connector sends
                     patcher, dummy = self._patch_connector_plugin()
                     with patcher:
                         ok = self.bot.outgo(self.channel, self.bot_partner)
         self.assertTrue(ok)
         # The bot should have posted the text with <br> replacing newlines
-        created = self.channel.message_ids.filtered(lambda m: m.author_id == self.bot_partner)
+        created = self.channel.message_ids.filtered(
+            lambda m: m.author_id == self.bot_partner
+        )
         self.assertTrue(created)
         self.assertIn("Line1<br>Line2", str(created[0].body))
         dummy.outgo_message.assert_called()
@@ -185,20 +226,28 @@ class TestBotManagerCoverage(TransactionCase):
         self.bot.write({"bot_type": "typebot"})
         # Two active sessions for this channel
         Session = self.env["discuss_hub.bot_manager.session"]
-        s1 = Session.create({
-            "bot_manager_id": self.bot.id,
-            "channel_id": self.channel.id,
-            "session_id": "old1",
-        })
-        s2 = Session.create({
-            "bot_manager_id": self.bot.id,
-            "channel_id": self.channel.id,
-            "session_id": "old2",
-        })
+        s1 = Session.create(
+            {
+                "bot_manager_id": self.bot.id,
+                "channel_id": self.channel.id,
+                "session_id": "old1",
+            }
+        )
+        s2 = Session.create(
+            {
+                "bot_manager_id": self.bot.id,
+                "channel_id": self.channel.id,
+                "session_id": "old2",
+            }
+        )
         # Act
         new_s = self.bot.typebot_register_new_session(self.channel, "new123")
         # Assert
         self.assertTrue(new_s)
         self.assertEqual(new_s.session_id, "new123")
-        self.assertTrue(self.env["discuss_hub.bot_manager.session"].browse(s1.id).expired)
-        self.assertTrue(self.env["discuss_hub.bot_manager.session"].browse(s2.id).expired)
+        self.assertTrue(
+            self.env["discuss_hub.bot_manager.session"].browse(s1.id).expired
+        )
+        self.assertTrue(
+            self.env["discuss_hub.bot_manager.session"].browse(s2.id).expired
+        )
