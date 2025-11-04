@@ -279,6 +279,9 @@ class DiscussHubBotManager(models.Model):
         :param message: The message to send.
         :return: True if the message was sent successfully, False otherwise.
         """
+        if not self.active:
+            _logger.info(f"Bot {self.id} disabled. Ignoring outgo.")
+            return False
         message = channel.message_ids[0]
         # Simulate sending a message to the bot
         _logger.info(

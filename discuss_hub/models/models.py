@@ -48,6 +48,19 @@ class DiscussHubConnector(models.Model):
         default="evolution",
         required=True,
     )
+    create_user_for_visitor = fields.Selection(
+        selection=[
+            ("none", "Do not Create User"),
+            ("portal", "Create Portal User"),
+            ("public", "Create Public User"),
+        ],
+        string="Create User for Visitor",
+        default="none",
+        help=(
+            "Define if a user should be created for the visitor and what type of "
+            "user will be created."
+        ),
+    )
     url = fields.Char(required=False)
     api_key = fields.Char(required=False)
     manager_channel = fields.Many2many(comodel_name="discuss.channel")
@@ -214,7 +227,7 @@ class DiscussHubConnector(models.Model):
         for connector in self:
             status = connector.get_status()
             if status:
-                _logger.debug(f"Connector status: {status}")
+                _logger.debug("Connector status: %s", status)
                 connector.status = status.get("status", "not_found")
                 connector.qr_code_base64 = status.get("qr_code_base64", None)
 

@@ -204,6 +204,28 @@ class Plugin:
                 }
             )
 
+            # Creation of user according to connector option
+            user_type = self.connector.create_user_for_visitor
+            if user_type in ("portal", "public"):
+                # Check if user is already linked to partner
+                user_exists = self.connector.env["res.users"].search(
+                    [("partner_id", "=", parent_partner.id)], limit=1
+                )
+                if not user_exists:
+                    group_xml_id = (
+                        "base.group_portal"
+                        if user_type == "portal"
+                        else "base.group_public"
+                    )
+                    group = self.connector.env.ref(group_xml_id).id
+                    user_vals = {
+                        "name": parent_partner.name,
+                        "login": contact_identifier,
+                        "partner_id": parent_partner.id,
+                        "groups_id": [(4, group)],
+                    }
+                    self.connector.env["res.users"].create(user_vals)
+
             # Create contact partner
             partner_contact = self.connector.env["res.partner"].create(
                 {
@@ -223,6 +245,27 @@ class Plugin:
             # We already have the partner
             partner_contact = partner[0]
             parent_partner = partner_contact.parent_id
+
+            # Criação de usuário conforme opção do conector
+            user_type = self.connector.create_user_for_visitor
+            if user_type in ("portal", "public"):
+                user_exists = self.connector.env["res.users"].search(
+                    [("partner_id", "=", parent_partner.id)], limit=1
+                )
+                if not user_exists:
+                    group_xml_id = (
+                        "base.group_portal"
+                        if user_type == "portal"
+                        else "base.group_public"
+                    )
+                    group = self.connector.env.ref(group_xml_id).id
+                    user_vals = {
+                        "name": parent_partner.name,
+                        "login": parent_partner[self.connector.partner_contact_field],
+                        "partner_id": parent_partner.id,
+                        "groups_id": [(4, group)],
+                    }
+                    self.connector.env["res.users"].create(user_vals)
 
         # TODO: Update contact name if changed
 

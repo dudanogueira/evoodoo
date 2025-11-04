@@ -1,34 +1,56 @@
 #!/usr/bin/env python3
 """
-Quick test script to verify channel membership computation
-Run this in Odoo shell:
-docker compose -f compose-dev.yaml exec odoo odoo shell -c /etc/odoo/odoo.conf
+Quick test script to verify channel membership computation.
+
+Usage (Odoo shell):
+    docker compose -f compose-dev.yaml exec odoo \
+        odoo shell -c /etc/odoo/odoo.conf -d $ODOO_DB
+    >>> from discuss_hub import test_channel_membership as tcm
+    >>> tcm.run(env)
 """
 
-# Get a channel with discuss_hub_connector
-channels = env["discuss.channel"].search(  # noqa: F821
-    [("discuss_hub_connector", "!=", False)], limit=5
-)
+from __future__ import annotations
 
-print("\n=== Channel Membership Test ===")
-print(f"Current user: {env.user.name} (ID: {env.user.id})")  # noqa: F821
-print(  # noqa: F821
-    f"Current partner: {env.user.partner_id.name} "  # noqa: F821
-    f"(ID: {env.user.partner_id.id})"  # noqa: F821
-)
-print(f"\nFound {len(channels)} discuss hub channels\n")
+import logging
 
-for channel in channels:
-    print(f"Channel: {channel.name} (ID: {channel.id})")
-    print(f"  - Active: {channel.active}")
-    connector_name = (
-        channel.discuss_hub_connector.name if channel.discuss_hub_connector else "None"
+logger = logging.getLogger(__name__)
+
+
+def run(env):  # noqa: D401 - simple helper for Odoo shell
+    """Run the membership checks using the provided Odoo environment."""
+    # Get a channel with discuss_hub_connector
+    channels = env["discuss.channel"].search(
+        [("discuss_hub_connector", "!=", False)], limit=5
     )
-    print(f"  - Connector: {connector_name}")
-    print(f"  - Members: {', '.join([p.name for p in channel.channel_partner_ids])}")
-    print(f"  - Is current user member? {channel.is_current_user_member}")
-    print(  # noqa: F821
-        f"  - Current partner in members? "
-        f"{env.user.partner_id in channel.channel_partner_ids}"  # noqa: F821
+
+    logger.info("=== Channel Membership Test ===")
+    logger.info("Current user: %s (ID: %s)", env.user.name, env.user.id)
+    logger.info(
+        "Current partner: %s (ID: %s)",
+        env.user.partner_id.name,
+        env.user.partner_id.id,
     )
-    print()
+    logger.info("Found %s discuss hub channels", len(channels))
+
+    for channel in channels:
+        logger.info("Channel: %s (ID: %s)", channel.name, channel.id)
+        logger.info("  - Active: %s", channel.active)
+        logger.info(
+            "  - Connector: %s",
+            channel.discuss_hub_connector.name
+            if channel.discuss_hub_connector
+            else "None",
+        )
+        logger.info(
+            "  - Members: %s",
+            ", ".join([p.name for p in channel.channel_partner_ids]),
+        )
+        logger.info("  - Is current user member? %s", channel.is_current_user_member)
+        logger.info(
+            "  - Current partner in members? %s",
+            env.user.partner_id in channel.channel_partner_ids,
+        )
+
+
+if __name__ == "__main__":
+    logger.info("Import this module in Odoo shell and call run(env)")

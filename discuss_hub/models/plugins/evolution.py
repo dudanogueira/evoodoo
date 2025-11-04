@@ -575,6 +575,8 @@ class Plugin(PluginBase):
             if self.connector.import_contacts:
                 response = self.process_contacts_upsert(payload)
 
+        # Presence update handling was removed (reverted)
+
         return response
 
     def process_contacts_upsert(self, payload):

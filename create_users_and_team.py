@@ -4,6 +4,7 @@ Script to create 3 users and a Discuss Hub routing team with those users.
 Usage: Run this script in the Odoo shell or as a Python script with Odoo environment.
 """
 
+import logging
 import os
 import xmlrpc.client
 
@@ -38,10 +39,12 @@ USERS_DATA = [
 TEAM_NAME = "Support Team"
 TEAM_NAME_2 = "VIP Support Team"
 
+logger = logging.getLogger(__name__)
+
 
 def main():
     """Main function to create users and team."""
-    print(f"Connecting to Odoo at {ODOO_URL}...")
+    logger.info("Connecting to Odoo at %s...", ODOO_URL)
 
     # Connect to Odoo
     common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
@@ -50,17 +53,17 @@ def main():
     uid = common.authenticate(ODOO_DB, ODOO_ADMIN_USER, ODOO_ADMIN_PASSWORD, {})
 
     if not uid:
-        print("❌ Authentication failed! Check your credentials.")
+        logger.error("Authentication failed! Check your credentials.")
         return
 
-    print(f"✅ Authenticated as user ID: {uid}")
+    logger.info("Authenticated as user ID: %s", uid)
 
     # Connect to object endpoint
     models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
 
     # Create users
     created_user_ids = []
-    print("\n📝 Creating users...")
+    logger.info("📝 Creating users...")
 
     for user_data in USERS_DATA:
         # Check if user already exists
@@ -74,9 +77,10 @@ def main():
         )
 
         if existing_user:
-            print(
-                f"⚠️  User '{user_data['login']}' already exists "
-                f"(ID: {existing_user[0]})"
+            logger.warning(
+                "User '%s' already exists (ID: %s)",
+                user_data["login"],
+                existing_user[0],
             )
             created_user_ids.append(existing_user[0])
         else:
@@ -97,11 +101,11 @@ def main():
                     }
                 ],
             )
-            print(f"✅ Created user '{user_data['login']}' (ID: {user_id})")
+            logger.info("Created user '%s' (ID: %s)", user_data["login"], user_id)
             created_user_ids.append(user_id)
 
     # Check if team already exists
-    print(f"\n🔍 Checking if team '{TEAM_NAME}' exists...")
+    logger.info("🔍 Checking if team '%s' exists...", TEAM_NAME)
     existing_team = models.execute_kw(
         ODOO_DB,
         uid,
@@ -113,8 +117,8 @@ def main():
 
     if existing_team:
         team_id = existing_team[0]
-        print(f"⚠️  Team '{TEAM_NAME}' already exists (ID: {team_id})")
-        print("🔄 Updating team members...")
+        logger.warning("Team '%s' already exists (ID: %s)", TEAM_NAME, team_id)
+        logger.info("Updating team members...")
 
         # Get existing team member IDs
         team_data = models.execute_kw(
@@ -139,7 +143,7 @@ def main():
             )
     else:
         # Create new team
-        print(f"📝 Creating team '{TEAM_NAME}'...")
+        logger.info("📝 Creating team '%s'...", TEAM_NAME)
         team_id = models.execute_kw(
             ODOO_DB,
             uid,
@@ -155,10 +159,10 @@ def main():
                 }
             ],
         )
-        print(f"✅ Created team '{TEAM_NAME}' (ID: {team_id})")
+        logger.info("Created team '%s' (ID: %s)", TEAM_NAME, team_id)
 
     # Create team members
-    print("\n👥 Adding users to team...")
+    logger.info("👥 Adding users to team...")
     for order, user_id in enumerate(created_user_ids, start=1):
         member_id = models.execute_kw(
             ODOO_DB,
@@ -186,10 +190,10 @@ def main():
             {"fields": ["name"]},
         )[0]["name"]
 
-        print(f"✅ Added '{user_name}' to team (Member ID: {member_id})")
+        logger.info("Added '%s' to team (Member ID: %s)", user_name, member_id)
 
     # Create second team with only agent1
-    print(f"\n🔍 Checking if team '{TEAM_NAME_2}' exists...")
+    logger.info("🔍 Checking if team '%s' exists...", TEAM_NAME_2)
     existing_team_2 = models.execute_kw(
         ODOO_DB,
         uid,
@@ -201,8 +205,8 @@ def main():
 
     if existing_team_2:
         team_id_2 = existing_team_2[0]
-        print(f"⚠️  Team '{TEAM_NAME_2}' already exists (ID: {team_id_2})")
-        print("🔄 Updating team members...")
+        logger.warning("Team '%s' already exists (ID: %s)", TEAM_NAME_2, team_id_2)
+        logger.info("Updating team members...")
 
         # Get existing team member IDs
         team_data_2 = models.execute_kw(
@@ -227,7 +231,7 @@ def main():
             )
     else:
         # Create new team
-        print(f"📝 Creating team '{TEAM_NAME_2}'...")
+        logger.info("📝 Creating team '%s'...", TEAM_NAME_2)
         team_id_2 = models.execute_kw(
             ODOO_DB,
             uid,
@@ -243,10 +247,10 @@ def main():
                 }
             ],
         )
-        print(f"✅ Created team '{TEAM_NAME_2}' (ID: {team_id_2})")
+        logger.info("Created team '%s' (ID: %s)", TEAM_NAME_2, team_id_2)
 
     # Add only agent1 to the second team
-    print(f"\n👥 Adding agent1 to '{TEAM_NAME_2}'...")
+    logger.info("👥 Adding agent1 to '%s'...", TEAM_NAME_2)
     agent1_user_id = created_user_ids[0]  # First user is agent1
 
     member_id_2 = models.execute_kw(
@@ -275,17 +279,28 @@ def main():
         {"fields": ["name"]},
     )[0]["name"]
 
-    print(f"✅ Added '{agent1_name}' to team (Member ID: {member_id_2})")
+    logger.info("Added '%s' to team (Member ID: %s)", agent1_name, member_id_2)
 
-    print("\n🎉 Setup complete!")
-    print(f"   - Created/Updated {len(created_user_ids)} users")
-    print(
-        f"   - Team '{TEAM_NAME}' (ID: {team_id}) has {len(created_user_ids)} members"
+    logger.info("🎉 Setup complete!")
+    logger.info("   - Created/Updated %s users", len(created_user_ids))
+    logger.info(
+        "   - Team '%s' (ID: %s) has %s members",
+        TEAM_NAME,
+        team_id,
+        len(created_user_ids),
     )
-    print(f"   - Team '{TEAM_NAME_2}' (ID: {team_id_2}) has 1 member (agent1)")
-    print("\n📋 User credentials:")
+    logger.info(
+        "   - Team '%s' (ID: %s) has 1 member (agent1)",
+        TEAM_NAME_2,
+        team_id_2,
+    )
+    logger.info("📋 User credentials:")
     for user_data in USERS_DATA:
-        print(f"   Login: {user_data['login']} | Password: {user_data['password']}")
+        logger.info(
+            "   Login: %s | Password: %s",
+            user_data["login"],
+            user_data["password"],
+        )
 
 
 if __name__ == "__main__":
