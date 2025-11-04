@@ -535,12 +535,16 @@ class TestTypebotBotManager(TestBotManagerBase):
         )
 
         # Manually trigger bot processing
-        self.typebot_bot.outgo(self.channel, self.partner)
+        self.typebot_bot.outgo(self.channel, self.bot_partner)
 
-        # Verify continue chat was called with correct session ID
+        # Verify continue chat was called with correct session ID (in URL path)
         mock_post.assert_called_once()
         call_args = mock_post.call_args
-        self.assertIn("existing-session-456", call_args[1]["json"]["sessionId"])
+        # requests.post(new_url, ...) passes URL as first positional arg
+        request_url = (
+            call_args.args[0] if hasattr(call_args, "args") else call_args[0][0]
+        )
+        self.assertIn("existing-session-456", request_url)
 
     def test_outgo_not_triggered_when_inactive(self):
         # Create a bot manager marked as inactive, linked to a partner
@@ -567,6 +571,6 @@ class TestTypebotBotManager(TestBotManagerBase):
         with patch.object(
             type(bot_manager), "generic_handle", autospec=True
         ) as mock_generic:
-            result = bot_manager.outgo(self.channel, self.partner)
+            result = bot_manager.outgo(self.channel, self.bot_partner)
             self.assertFalse(result, "outgo should return False when bot is inactive")
             mock_generic.assert_not_called()

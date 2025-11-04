@@ -224,9 +224,10 @@ class TestCodeHooks(TransactionCase):
         # Add portal user as member of the channel
         self.channel.add_members([portal_user.partner_id.id])
 
-        # Post a message as portal user
-        message = self.channel.with_user(portal_user).message_post(
+        # Post a message authored by portal user (use sudo to bypass ACLs)
+        message = self.channel.sudo().message_post(
             body="Portal user message",
+            author_id=portal_user.partner_id.id,
             message_type="comment",
         )
 
