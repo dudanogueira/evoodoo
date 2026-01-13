@@ -73,6 +73,14 @@ class DiscussHubConnector(models.Model):
     always_update_profile_picture = fields.Boolean(default=False)
     show_read_receipts = fields.Boolean(default=True)
     notify_reactions = fields.Boolean(default=True)
+    reproduce_notification_messages = fields.Boolean(
+        default=False,
+        help=(
+            "If enabled, notification messages (system messages, automated messages, "
+            "etc.) will be sent to the external channel. When disabled, only "
+            "regular messages (comments) will be sent."
+        ),
+    )
     default_admin_partner_id = fields.Many2one(
         "res.partner",
         string="Default Admin Partner",
@@ -275,6 +283,14 @@ class DiscussHubConnector(models.Model):
         This method will receive the channel and message
         from the channel base automation and pass it over to the connector
         """
+        # Debug logging
+        _logger.info(
+            f"action:outgo_message called for connector:{self.name} "
+            f"message_id:{message.id if message else 'None'} "
+            f"message_type:{message.message_type if message else 'None'} "
+            f"reproduce_notification_messages:{self.reproduce_notification_messages}"
+        )
+        
         if not self.enabled:
             _logger.warning(
                 f"action:outgo_message connector {self.name} ID {self.id} "
@@ -283,6 +299,24 @@ class DiscussHubConnector(models.Model):
                 f"{message.id if message else 'None'}"
             )
             return
+        
+        # Check if we should skip notification messages
+        if (
+            not self.reproduce_notification_messages
+            and message.message_type == "notification"
+        ):
+            _logger.info(
+                f"action:outgo_message SKIPPING notification message_id:{message.id} "
+                f"message_type:{message.message_type} "
+                f"connector:{self.name} (reproduce_notification_messages=False)"
+            )
+            return
+        
+        _logger.info(
+            f"action:outgo_message SENDING message_id:{message.id} "
+            f"message_type:{message.message_type} to connector:{self.name}"
+        )
+        
         plugin = self.get_plugin()
         return plugin.outgo_message(channel, message)
 

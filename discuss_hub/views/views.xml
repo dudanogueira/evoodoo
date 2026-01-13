@@ -149,6 +149,7 @@
                             <field name="always_update_profile_picture" />
                             <field name="show_read_receipts" />
                             <field name="notify_reactions" />
+                            <field name="reproduce_notification_messages" />
                             <field name="import_contacts" />
                             <field name="create_user_for_visitor" />
                         </group>
@@ -370,7 +371,7 @@
                                     name="action_open_archive_wizard"
                                     type="object"
                                 >
-                                    <i class="fa fa-archive" /> Close
+                                    <i class="fa fa-archive" /> Archive
                                 </button>
                             </div>
                         </div>

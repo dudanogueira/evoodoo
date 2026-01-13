@@ -1,7 +1,5 @@
 import {_t} from "@web/core/l10n/translation";
 import {threadActionsRegistry} from "@mail/core/common/thread_actions";
-import {useComponent} from "@odoo/owl";
-import {useService} from "@web/core/utils/hooks";
 
 threadActionsRegistry.add("archive-channel", {
     name: _t("Archive"),
@@ -16,13 +14,9 @@ threadActionsRegistry.add("archive-channel", {
             (!component.props?.chatWindow || component.props?.chatWindow?.isOpen)
         );
     },
-    setup() {
-        const component = useComponent();
-        component.dialogService = useService("dialog");
-    },
     async open(component) {
         const thread = component.thread;
-        component.actionService.doAction({
+        component.store.env.services.action.doAction({
             type: "ir.actions.act_window",
             res_model: "discuss_hub.archive_manager",
             views: [[false, "form"]],
@@ -47,13 +41,9 @@ threadActionsRegistry.add("forward-channel", {
             (!component.props?.chatWindow || component.props?.chatWindow?.isOpen)
         );
     },
-    setup() {
-        const component = useComponent();
-        component.actionService = useService("action");
-    },
     async open(component) {
         const thread = component.thread;
-        component.actionService.doAction({
+        component.store.env.services.action.doAction({
             type: "ir.actions.act_window",
             res_model: "discuss_hub.routing_manager",
             views: [[false, "form"]],
@@ -62,8 +52,5 @@ threadActionsRegistry.add("forward-channel", {
                 default_channel_ids: [thread?.id],
             },
         });
-        //
-        // component.props.chatWindow.close();
-        // component.close();
     },
 });
