@@ -7,7 +7,7 @@ class IrAttachment(models.Model):
     It extends the base method for anonymous usage.
     """
 
-    _inherit = ["ir.attachment"]
+    _inherit = "ir.attachment"
     # To use when user react or reply to a MediaMessa
     evo_remote_message_id = fields.Char(string="Evo Remote Message ID")
     # To store the message that originated this attachment"

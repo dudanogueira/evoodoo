@@ -342,4 +342,5 @@ class DiscussHubSocialNetworkeType(models.Model):
 
 class DiscussHubConnectorStatus(models.TransientModel):
     _name = "discuss_hub.connector.status"
+    _description = "Discuss Hub Connector Status"
     html_content = fields.Html("HTML Content", readonly=True)

@@ -13,7 +13,7 @@ threadActionsRegistry.add("archive-channel", {
         return (
             component.thread?.model === "discuss.channel" &&
             component.thread?.channel_type === "group" &&
-            (!component.props.chatWindow || component.props.chatWindow.isOpen)
+            (!component.props?.chatWindow || component.props?.chatWindow?.isOpen)
         );
     },
     setup() {
@@ -44,7 +44,7 @@ threadActionsRegistry.add("forward-channel", {
         return (
             component.thread?.model === "discuss.channel" &&
             component.thread?.channel_type === "group" &&
-            (!component.props.chatWindow || component.props.chatWindow.isOpen)
+            (!component.props?.chatWindow || component.props?.chatWindow?.isOpen)
         );
     },
     setup() {

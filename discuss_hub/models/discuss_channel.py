@@ -14,13 +14,12 @@ class DiscussChannel(models.Model):
     It extends the base method for anonymous usage.
     """
 
-    _inherit = ["discuss.channel"]
+    _inherit = "discuss.channel"
 
     discuss_hub_connector = fields.Many2one(
         comodel_name="discuss_hub.connector",
         string="Connector",
         index="btree_not_null",
-        auto_join=True,
         ondelete="set null",
     )
     discuss_hub_outgoing_destination = fields.Char(
@@ -117,7 +116,6 @@ class DiscussChannel(models.Model):
             },
         }
 
-    @api.returns("mail.message", lambda value: value.id)
     def message_post(self, **kwargs):
         """
         Override message_post to handle outgoing messages to external connectors.

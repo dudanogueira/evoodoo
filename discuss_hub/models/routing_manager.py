@@ -244,7 +244,8 @@ class DiscussHubRoutingManager(models.TransientModel):
                 limit=1,
             )
             if channel_member:
-                channel_member._channel_fold("closed", 10000000)
+                # In Odoo 19, unpinning is controlled by unpin_dt
+                channel_member.write({"unpin_dt": fields.Datetime.now()})
             # leave the channel
             channel.with_user(user).action_unfollow()
 
@@ -337,7 +338,8 @@ class DiscussHubArchiveManager(models.TransientModel):
                     message_type="comment",
                     subtype_xmlid="mail.mt_comment",
                 )
-            channel_member._channel_fold("closed", 10000000)
+            # In Odoo 19, unpinning is controlled by unpin_dt
+            channel_member.write({"unpin_dt": fields.Datetime.now()})
             # TODO: add internal note as option
             # TODO: add tags
             # TODO: close to all members

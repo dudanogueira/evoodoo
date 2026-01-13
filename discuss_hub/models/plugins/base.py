@@ -1,7 +1,7 @@
 import logging
 import os
 
-from odoo import Command
+from odoo import Command, fields
 
 _logger = logging.getLogger(__name__)
 
@@ -165,7 +165,8 @@ class Plugin:
         # open the chat for members
         # TODO: Make it optional
         for member in channel.channel_member_ids:
-            member._channel_fold("open", 1)
+            # In Odoo 19, pinning is controlled by unpin_dt and last_interest_dt
+            member.write({"unpin_dt": False, "last_interest_dt": fields.Datetime.now()})
         return channel
 
     def get_or_create_partner(

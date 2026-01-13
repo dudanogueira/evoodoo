@@ -424,7 +424,6 @@
                 <field name="partner_id" />
                 <field name="guest_id" optional="hide" />
                 <field name="create_date" string="Joined" optional="show" />
-                <field name="fold_state" optional="hide" />
                 <field name="is_pinned" optional="hide" />
                 <button
                     name="unlink"
