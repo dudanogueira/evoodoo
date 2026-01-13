@@ -288,6 +288,7 @@ class DiscussHubConnector(models.Model):
             f"action:outgo_message called for connector:{self.name} "
             f"message_id:{message.id if message else 'None'} "
             f"message_type:{message.message_type if message else 'None'} "
+            f"author_id:{message.author_id if message else 'None'} "
             f"reproduce_notification_messages:{self.reproduce_notification_messages}"
         )
         
@@ -311,6 +312,52 @@ class DiscussHubConnector(models.Model):
                 f"connector:{self.name} (reproduce_notification_messages=False)"
             )
             return
+        
+        # Skip messages from portal/public users (they're visitors, not internal users)
+        if message.author_id:
+            _logger.debug(
+                f"action:outgo_message author_id:{message.author_id.id} "
+                f"name:{message.author_id.name} "
+                f"user_ids:{message.author_id.user_ids.ids if message.author_id.user_ids else 'None'}"
+            )
+            
+            if message.author_id.user_ids:
+                author_user = message.author_id.user_ids[0]
+                _logger.debug(
+                    f"action:outgo_message author_user:{author_user.id} "
+                    f"login:{author_user.login}"
+                )
+                
+                portal_group = self.env.ref("base.group_portal", raise_if_not_found=False)
+                public_group = self.env.ref("base.group_public", raise_if_not_found=False)
+                
+                _logger.debug(
+                    f"action:outgo_message portal_group:{portal_group.id if portal_group else 'None'} "
+                    f"public_group:{public_group.id if public_group else 'None'}"
+                )
+                
+                # Check if user is in portal or public group using has_group method
+                is_portal = author_user.has_group('base.group_portal') if portal_group else False
+                is_public = author_user.has_group('base.group_public') if public_group else False
+                
+                _logger.debug(
+                    f"action:outgo_message is_portal:{is_portal} is_public:{is_public}"
+                )
+                
+                if is_portal:
+                    _logger.info(
+                        f"action:outgo_message SKIPPING message_id:{message.id} "
+                        f"from portal user:{author_user.login} "
+                        f"connector:{self.name}"
+                    )
+                    return
+                if is_public:
+                    _logger.info(
+                        f"action:outgo_message SKIPPING message_id:{message.id} "
+                        f"from public user:{author_user.login} "
+                        f"connector:{self.name}"
+                    )
+                    return
         
         _logger.info(
             f"action:outgo_message SENDING message_id:{message.id} "

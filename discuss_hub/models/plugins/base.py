@@ -254,19 +254,24 @@ class Plugin:
                     [("partner_id", "=", parent_partner.id)], limit=1
                 )
                 if not user_exists:
+                    # Get the appropriate group
                     group_xml_id = (
                         "base.group_portal"
                         if user_type == "portal"
                         else "base.group_public"
                     )
-                    group = self.connector.env.ref(group_xml_id).id
+                    group = self.connector.env.ref(group_xml_id)
+                    
+                    # Create user with minimal vals
                     user_vals = {
                         "name": parent_partner.name,
                         "login": parent_partner[self.connector.partner_contact_field],
                         "partner_id": parent_partner.id,
-                        "groups_id": [(4, group)],
                     }
-                    self.connector.env["res.users"].create(user_vals)
+                    new_user = self.connector.env["res.users"].create(user_vals)
+                    
+                    # Add user to group using the inverse relation
+                    group.write({"users": [(4, new_user.id)]})
 
         # TODO: Update contact name if changed
 
