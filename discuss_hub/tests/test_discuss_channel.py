@@ -1,4 +1,5 @@
 """Tests for discuss.channel model extensions."""
+
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 

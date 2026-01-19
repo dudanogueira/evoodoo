@@ -1,4 +1,5 @@
 """Tests for mail.message.reaction model extensions."""
+
 from unittest.mock import patch
 
 from odoo.tests import tagged

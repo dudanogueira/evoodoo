@@ -1,4 +1,5 @@
 """Tests for connector computed fields and utility methods."""
+
 from unittest.mock import patch
 
 from odoo.tests import tagged
@@ -222,9 +223,7 @@ class TestConnectorComputedFields(TransactionCase):
         self.connector.automatic_added_partners = [(6, 0, [partner1.id, partner2.id])]
 
         # Get routed partners
-        partners = self.connector.get_initial_routed_partners(
-            connector=self.connector
-        )
+        partners = self.connector.get_initial_routed_partners(connector=self.connector)
 
         # Verify both partners are returned
         self.assertIn(partner1, partners)
@@ -259,9 +258,7 @@ class TestConnectorComputedFields(TransactionCase):
         self.connector.automatic_added_teams = [(6, 0, [team.id])]
 
         # Get routed partners
-        partners = self.connector.get_initial_routed_partners(
-            connector=self.connector
-        )
+        partners = self.connector.get_initial_routed_partners(connector=self.connector)
 
         # Verify both automatic partner and team member are included
         self.assertIn(partner1, partners)
