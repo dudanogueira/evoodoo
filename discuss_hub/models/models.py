@@ -52,13 +52,13 @@ class DiscussHubConnector(models.Model):
         selection=[
             ("none", "Do not Create User"),
             ("portal", "Create Portal User"),
-            ("public", "Create Public User"),
+            ("guest", "Create Guest User"),
         ],
         string="Create User for Visitor",
         default="none",
         help=(
-            "Define if a user should be created for the visitor and what type of "
-            "user will be created."
+            "Define if a user/guest should be created for the visitor. "
+            "Portal users have login access, while guests can only participate in channels."
         ),
     )
     url = fields.Char(required=False)

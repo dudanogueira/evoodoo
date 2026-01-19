@@ -143,22 +143,38 @@ class Plugin:
         )
         # add default partners
         partners_to_add = [Command.link(p.id) for p in partners_to_add]
-        # add visitor partner
-        partners_to_add.append(Command.link(partner.parent_id.id))
+        
+        # Check if visitor should be added as guest or partner
+        user_type = self.connector.create_user_for_visitor
+        
+        if user_type != "guest":
+            # add visitor partner (for portal users or none)
+            partners_to_add.append(Command.link(partner.parent_id.id))
+        
         channel_name = self.get_channel_name(payload=payload)
         # Create channel
-        channel = self.connector.env["discuss.channel"].create(
-            {
-                "discuss_hub_connector": self.connector.id,
-                "discuss_hub_outgoing_destination": self.get_contact_identifier(
-                    payload
-                ),
-                "name": channel_name,
-                "channel_partner_ids": partners_to_add,
-                "image_128": partner.image_128,
-                "channel_type": "group",
-            }
-        )
+        channel_vals = {
+            "discuss_hub_connector": self.connector.id,
+            "discuss_hub_outgoing_destination": self.get_contact_identifier(
+                payload
+            ),
+            "name": channel_name,
+            "channel_partner_ids": partners_to_add,
+            "image_128": partner.image_128,
+            "channel_type": "group",
+        }
+            
+        channel = self.connector.env["discuss.channel"].create(channel_vals)
+        
+        # Add guest after channel creation (guests cannot be added during creation)
+        if user_type == "guest":
+            # Find guest by partner name
+            guest = self.connector.env["mail.guest"].search(
+                [("name", "=", partner.parent_id.name)], limit=1
+            )
+            if guest:
+                # Add guest to channel using add_members method
+                channel.add_members(guest_ids=[guest.id])
         # alert bus of new group
         channel._broadcast(channel.channel_member_ids.partner_id.ids)
         # open the chat for members
@@ -204,29 +220,36 @@ class Plugin:
                 }
             )
 
-            # Creation of user according to connector option
+            # Creation of user/guest according to connector option
             user_type = self.connector.create_user_for_visitor
-            if user_type in ("portal", "public"):
+            if user_type == "portal":
                 # Check if user is already linked to partner
                 user_exists = self.connector.env["res.users"].search(
                     [("partner_id", "=", parent_partner.id)], limit=1
                 )
                 if not user_exists:
-                    group_xml_id = (
-                        "base.group_portal"
-                        if user_type == "portal"
-                        else "base.group_public"
-                    )
-                    # Create user without groups first
+                    # Create portal user
                     user_vals = {
                         "name": parent_partner.name,
                         "login": contact_identifier,
                         "partner_id": parent_partner.id,
                     }
                     new_user = self.connector.env["res.users"].create(user_vals)
-                    # Add user to group - use Command.set() to replace all groups
-                    group = self.connector.env.ref(group_xml_id)
+                    # Add user to portal group
+                    group = self.connector.env.ref("base.group_portal")
                     new_user.sudo().write({"group_ids": [Command.set([group.id])]})
+            elif user_type == "guest":
+                # Create guest for this partner
+                # Check if guest already exists for this partner
+                guest_exists = self.connector.env["mail.guest"].search(
+                    [("name", "=", parent_partner.name)], limit=1
+                )
+                if not guest_exists:
+                    self.connector.env["mail.guest"].create(
+                        {
+                            "name": parent_partner.name,
+                        }
+                    )
 
             # Create contact partner
             partner_contact = self.connector.env["res.partner"].create(
@@ -248,29 +271,35 @@ class Plugin:
             partner_contact = partner[0]
             parent_partner = partner_contact.parent_id
 
-            # Criação de usuário conforme opção do conector
+            # Criação de usuário/guest conforme opção do conector
             user_type = self.connector.create_user_for_visitor
-            if user_type in ("portal", "public"):
+            if user_type == "portal":
                 user_exists = self.connector.env["res.users"].search(
                     [("partner_id", "=", parent_partner.id)], limit=1
                 )
                 if not user_exists:
-                    # Get the appropriate group
-                    group_xml_id = (
-                        "base.group_portal"
-                        if user_type == "portal"
-                        else "base.group_public"
-                    )
-                    # Create user without groups first
+                    # Create portal user
                     user_vals = {
                         "name": parent_partner.name,
                         "login": parent_partner[self.connector.partner_contact_field],
                         "partner_id": parent_partner.id,
                     }
                     new_user = self.connector.env["res.users"].create(user_vals)
-                    # Set groups using write with sudo - use group_ids with Command.set()
-                    group = self.connector.env.ref(group_xml_id)
+                    # Add user to portal group
+                    group = self.connector.env.ref("base.group_portal")
                     new_user.sudo().write({"group_ids": [Command.set([group.id])]})
+            elif user_type == "guest":
+                # Create guest for this partner
+                # Check if guest already exists for this partner
+                guest_exists = self.connector.env["mail.guest"].search(
+                    [("name", "=", parent_partner.name)], limit=1
+                )
+                if not guest_exists:
+                    self.connector.env["mail.guest"].create(
+                        {
+                            "name": parent_partner.name,
+                        }
+                    )
 
         # TODO: Update contact name if changed
 

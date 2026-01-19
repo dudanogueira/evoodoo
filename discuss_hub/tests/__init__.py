@@ -11,6 +11,7 @@ from . import (
     test_bot_manager,
     test_res_partner,
     test_create_user_for_visitor,
+    test_guest_channel_creation,
     test_webhook_user_creation,
     test_simple,
 )
