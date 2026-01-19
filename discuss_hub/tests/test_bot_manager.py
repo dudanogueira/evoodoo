@@ -10,7 +10,7 @@ Tests cover:
 """
 
 import base64
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
@@ -23,20 +23,20 @@ class TestBotManagerBase(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        
+
         # Mock HTTP requests to prevent external calls during tests
-        cls.patcher_requests_get = patch('requests.get')
-        cls.patcher_requests_post = patch('requests.post')
-        
+        cls.patcher_requests_get = patch("requests.get")
+        cls.patcher_requests_post = patch("requests.post")
+
         mock_get = cls.patcher_requests_get.start()
         mock_post = cls.patcher_requests_post.start()
-        
+
         # Configure mocks to return empty/error responses
         mock_response = MagicMock()
         mock_response.status_code = 404
-        mock_response.content = b''
+        mock_response.content = b""
         mock_response.json.return_value = {}
-        mock_response.text = '{}'
+        mock_response.text = "{}"
         mock_get.return_value = mock_response
         mock_post.return_value = mock_response
 

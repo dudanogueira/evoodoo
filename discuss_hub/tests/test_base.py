@@ -9,7 +9,7 @@ This test suite covers the base plugin functionality including:
 - Edge cases and error handling
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase

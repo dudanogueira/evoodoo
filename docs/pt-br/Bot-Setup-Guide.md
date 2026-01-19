@@ -103,7 +103,8 @@ No conector, você pode configurar `Create User for Visitor`:
 
 - **Do not Create User**: Visitantes não terão conta (padrão) → ✅ Bot acionado
 - **Create Portal User**: Cria usuário portal para visitantes → ✅ Bot acionado
-- **Create Guest User**: Cria usuário guest para visitantes (sem login, apenas chat) → ✅ Bot acionado
+- **Create Guest User**: Cria usuário guest para visitantes (sem login, apenas chat) →
+  ✅ Bot acionado
 
 Em todos os casos, o bot será acionado pois nenhum desses é usuário interno.
 

@@ -8,7 +8,8 @@ This test suite covers:
 - Edge cases and validation
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
 
@@ -21,29 +22,29 @@ class TestCreateUserForVisitor(HttpCase):
     def setUpClass(cls):
         """Set up test data and environment."""
         super().setUpClass()
-        
+
         # Mock HTTP requests to prevent external calls during tests
-        cls.patcher_requests = patch('requests.get')
-        cls.patcher_requests_post = patch('requests.post')
-        cls.patcher_requests_session = patch('requests.Session')
-        
+        cls.patcher_requests = patch("requests.get")
+        cls.patcher_requests_post = patch("requests.post")
+        cls.patcher_requests_session = patch("requests.Session")
+
         mock_get = cls.patcher_requests.start()
         mock_post = cls.patcher_requests_post.start()
         mock_session = cls.patcher_requests_session.start()
-        
+
         # Configure mocks to return empty/error responses
         mock_response = MagicMock()
         mock_response.status_code = 404
-        mock_response.content = b''
+        mock_response.content = b""
         mock_get.return_value = mock_response
         mock_post.return_value = mock_response
-        
+
         # Mock session methods
         mock_session_instance = MagicMock()
         mock_session_instance.get.return_value = mock_response
         mock_session_instance.post.return_value = mock_response
         mock_session.return_value = mock_session_instance
-        
+
         # Create base connector (no user creation)
         cls.connector_none = cls.env["discuss_hub.connector"].create(
             {
@@ -58,7 +59,7 @@ class TestCreateUserForVisitor(HttpCase):
                 "create_user_for_visitor": "none",
             }
         )
-        
+
         # Create connector with portal user creation
         cls.connector_portal = cls.env["discuss_hub.connector"].create(
             {
@@ -73,7 +74,7 @@ class TestCreateUserForVisitor(HttpCase):
                 "create_user_for_visitor": "portal",
             }
         )
-        
+
         # Create connector with guest creation
         cls.connector_guest = cls.env["discuss_hub.connector"].create(
             {
@@ -139,7 +140,7 @@ class TestCreateUserForVisitor(HttpCase):
         """Test that all selection values are available."""
         field = self.connector_none._fields["create_user_for_visitor"]
         selection_values = [val[0] for val in field.selection]
-        
+
         self.assertIn("none", selection_values)
         self.assertIn("portal", selection_values)
         self.assertIn("guest", selection_values)
@@ -152,10 +153,10 @@ class TestCreateUserForVisitor(HttpCase):
         """Test that no user is created when set to 'none'."""
         plugin = self.connector_none.get_plugin()
         partner = plugin.get_or_create_partner(self.sample_payload)
-        
+
         # Check that partner was created
         self.assertTrue(partner, "Partner should be created")
-        
+
         # Check that NO user was created for this partner
         parent_partner = partner.parent_id
         user = self.env["res.users"].search(
@@ -174,16 +175,16 @@ class TestCreateUserForVisitor(HttpCase):
         """Test portal user creation for new visitor."""
         plugin = self.connector_portal.get_plugin()
         partner = plugin.get_or_create_partner(self.sample_payload)
-        
+
         # Check that partner was created
         self.assertTrue(partner, "Partner should be created")
-        
+
         # Check that portal user was created
         parent_partner = partner.parent_id
         user = self.env["res.users"].search(
             [("partner_id", "=", parent_partner.id)], limit=1
         )
-        
+
         self.assertTrue(user, "Portal user should be created")
         self.assertEqual(
             user.partner_id.id,
@@ -200,12 +201,12 @@ class TestCreateUserForVisitor(HttpCase):
         """Test that created portal user has portal group."""
         plugin = self.connector_portal.get_plugin()
         partner = plugin.get_or_create_partner(self.sample_payload)
-        
+
         parent_partner = partner.parent_id
         user = self.env["res.users"].search(
             [("partner_id", "=", parent_partner.id)], limit=1
         )
-        
+
         portal_group = self.env.ref("base.group_portal")
         self.assertIn(
             portal_group,
@@ -216,21 +217,19 @@ class TestCreateUserForVisitor(HttpCase):
     def test_portal_user_not_created_twice(self):
         """Test that portal user is not created twice for same visitor."""
         plugin = self.connector_portal.get_plugin()
-        
+
         # First call - creates user
         partner1 = plugin.get_or_create_partner(self.sample_payload)
         parent_partner1 = partner1.parent_id
         user1 = self.env["res.users"].search(
             [("partner_id", "=", parent_partner1.id)], limit=1
         )
-        
+
         # Second call with same payload
         partner2 = plugin.get_or_create_partner(self.sample_payload)
         parent_partner2 = partner2.parent_id
-        users = self.env["res.users"].search(
-            [("partner_id", "=", parent_partner2.id)]
-        )
-        
+        users = self.env["res.users"].search([("partner_id", "=", parent_partner2.id)])
+
         self.assertEqual(
             len(users),
             1,
@@ -250,16 +249,16 @@ class TestCreateUserForVisitor(HttpCase):
         """Test guest creation for new visitor."""
         plugin = self.connector_guest.get_plugin()
         partner = plugin.get_or_create_partner(self.sample_payload)
-        
+
         # Check that partner was created
         self.assertTrue(partner, "Partner should be created")
-        
+
         # Check that guest was created
         parent_partner = partner.parent_id
         guest = self.env["mail.guest"].search(
             [("name", "=", parent_partner.name)], limit=1
         )
-        
+
         self.assertTrue(guest, "Guest should be created")
         self.assertEqual(
             guest.name,
@@ -271,15 +270,15 @@ class TestCreateUserForVisitor(HttpCase):
         """Test that created guest is not a user."""
         plugin = self.connector_guest.get_plugin()
         partner = plugin.get_or_create_partner(self.sample_payload)
-        
+
         parent_partner = partner.parent_id
-        
+
         # Verify guest exists
         guest = self.env["mail.guest"].search(
             [("name", "=", parent_partner.name)], limit=1
         )
         self.assertTrue(guest, "Guest should exist")
-        
+
         # Verify NO user was created for this partner
         user = self.env["res.users"].search(
             [("partner_id", "=", parent_partner.id)], limit=1
@@ -289,21 +288,19 @@ class TestCreateUserForVisitor(HttpCase):
     def test_guest_not_created_twice(self):
         """Test that guest is not created twice for same visitor."""
         plugin = self.connector_guest.get_plugin()
-        
+
         # First call - creates guest
         partner1 = plugin.get_or_create_partner(self.sample_payload)
         parent_partner1 = partner1.parent_id
         guest1 = self.env["mail.guest"].search(
             [("name", "=", parent_partner1.name)], limit=1
         )
-        
+
         # Second call with same payload
         partner2 = plugin.get_or_create_partner(self.sample_payload)
         parent_partner2 = partner2.parent_id
-        guests = self.env["mail.guest"].search(
-            [("name", "=", parent_partner2.name)]
-        )
-        
+        guests = self.env["mail.guest"].search([("name", "=", parent_partner2.name)])
+
         self.assertEqual(
             len(guests),
             1,
@@ -328,22 +325,22 @@ class TestCreateUserForVisitor(HttpCase):
                 "phone": "5511888888888",
             }
         )
-        
+
         # Create contact partner
-        contact_partner = self.env["res.partner"].create(
+        self.env["res.partner"].create(
             {
                 "name": "whatsapp",
                 "phone": "5511888888888",
                 "parent_id": existing_partner.id,
             }
         )
-        
+
         # Verify no user exists
         user = self.env["res.users"].search(
             [("partner_id", "=", existing_partner.id)], limit=1
         )
         self.assertFalse(user, "No user should exist initially")
-        
+
         # Now process payload with portal connector
         plugin = self.connector_portal.get_plugin()
         payload = {
@@ -356,7 +353,7 @@ class TestCreateUserForVisitor(HttpCase):
             "contact_name": "Existing Partner",
         }
         partner = plugin.get_or_create_partner(payload)
-        
+
         # O plugin cria um novo partner filho, não usa o existente diretamente
         # Verify user was created for the parent of the new contact partner
         parent_partner = partner.parent_id
@@ -368,7 +365,6 @@ class TestCreateUserForVisitor(HttpCase):
             "User should be created for parent partner",
         )
 
-
     def test_user_not_recreated_for_existing_partner_with_user(self):
         """Test that user is not recreated if partner already has user."""
         # Create partner with existing user
@@ -378,7 +374,7 @@ class TestCreateUserForVisitor(HttpCase):
                 "phone": "5511777777777",
             }
         )
-        
+
         existing_user = self.env["res.users"].create(
             {
                 "name": "Existing User",
@@ -386,16 +382,16 @@ class TestCreateUserForVisitor(HttpCase):
                 "partner_id": existing_partner.id,
             }
         )
-        
+
         # Create contact partner
-        contact_partner = self.env["res.partner"].create(
+        self.env["res.partner"].create(
             {
                 "name": "whatsapp",
                 "phone": "5511777777777",
                 "parent_id": existing_partner.id,
             }
         )
-        
+
         # Process payload with portal connector
         plugin = self.connector_portal.get_plugin()
         payload = {
@@ -405,12 +401,10 @@ class TestCreateUserForVisitor(HttpCase):
                 "name": "Partner With User",
             }
         }
-        partner = plugin.get_or_create_partner(payload)
-        
+        plugin.get_or_create_partner(payload)
+
         # Verify only one user exists (the original one)
-        users = self.env["res.users"].search(
-            [("partner_id", "=", existing_partner.id)]
-        )
+        users = self.env["res.users"].search([("partner_id", "=", existing_partner.id)])
         self.assertEqual(
             len(users),
             1,
@@ -430,12 +424,12 @@ class TestCreateUserForVisitor(HttpCase):
         """Test that portal user name comes from partner."""
         plugin = self.connector_portal.get_plugin()
         partner = plugin.get_or_create_partner(self.sample_payload)
-        
+
         parent_partner = partner.parent_id
         user = self.env["res.users"].search(
             [("partner_id", "=", parent_partner.id)], limit=1
         )
-        
+
         self.assertEqual(
             user.name,
             parent_partner.name,
@@ -446,12 +440,12 @@ class TestCreateUserForVisitor(HttpCase):
         """Test that guest name comes from partner."""
         plugin = self.connector_guest.get_plugin()
         partner = plugin.get_or_create_partner(self.sample_payload)
-        
+
         parent_partner = partner.parent_id
         guest = self.env["mail.guest"].search(
             [("name", "=", parent_partner.name)], limit=1
         )
-        
+
         self.assertEqual(
             guest.name,
             parent_partner.name,
@@ -477,7 +471,7 @@ class TestCreateUserForVisitor(HttpCase):
         }
         partner1 = plugin_portal.get_or_create_partner(payload1)
         parent1 = partner1.parent_id
-        
+
         # Create visitor with guest connector (different phone to avoid conflict)
         plugin_guest = self.connector_guest.get_plugin()
         payload2 = {
@@ -491,24 +485,18 @@ class TestCreateUserForVisitor(HttpCase):
         }
         partner2 = plugin_guest.get_or_create_partner(payload2)
         parent2 = partner2.parent_id
-        
+
         # Check portal user was created
-        user1 = self.env["res.users"].search(
-            [("partner_id", "=", parent1.id)], limit=1
-        )
+        user1 = self.env["res.users"].search([("partner_id", "=", parent1.id)], limit=1)
         portal_group = self.env.ref("base.group_portal")
         self.assertIn(portal_group, user1.group_ids)
-        
+
         # Check guest was created (not a user)
-        guest2 = self.env["mail.guest"].search(
-            [("name", "=", parent2.name)], limit=1
-        )
+        guest2 = self.env["mail.guest"].search([("name", "=", parent2.name)], limit=1)
         self.assertTrue(guest2, "Guest should be created")
-        
+
         # Verify guest does not have a user account
-        user2 = self.env["res.users"].search(
-            [("partner_id", "=", parent2.id)], limit=1
-        )
+        user2 = self.env["res.users"].search([("partner_id", "=", parent2.id)], limit=1)
         self.assertFalse(user2, "Guest should not have user account")
 
     def test_visitor_without_name_in_payload(self):
@@ -521,15 +509,15 @@ class TestCreateUserForVisitor(HttpCase):
                 # No name field
             }
         }
-        
+
         partner = plugin.get_or_create_partner(payload)
         parent_partner = partner.parent_id
-        
+
         # User should still be created
         user = self.env["res.users"].search(
             [("partner_id", "=", parent_partner.id)], limit=1
         )
-        
+
         self.assertTrue(user, "User should be created even without name in payload")
         # Name should fallback to contact identifier
         self.assertTrue(

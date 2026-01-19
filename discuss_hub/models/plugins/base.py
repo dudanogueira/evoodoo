@@ -143,29 +143,27 @@ class Plugin:
         )
         # add default partners
         partners_to_add = [Command.link(p.id) for p in partners_to_add]
-        
+
         # Check if visitor should be added as guest or partner
         user_type = self.connector.create_user_for_visitor
-        
+
         if user_type != "guest":
             # add visitor partner (for portal users or none)
             partners_to_add.append(Command.link(partner.parent_id.id))
-        
+
         channel_name = self.get_channel_name(payload=payload)
         # Create channel
         channel_vals = {
             "discuss_hub_connector": self.connector.id,
-            "discuss_hub_outgoing_destination": self.get_contact_identifier(
-                payload
-            ),
+            "discuss_hub_outgoing_destination": self.get_contact_identifier(payload),
             "name": channel_name,
             "channel_partner_ids": partners_to_add,
             "image_128": partner.image_128,
             "channel_type": "group",
         }
-            
+
         channel = self.connector.env["discuss.channel"].create(channel_vals)
-        
+
         # Add guest after channel creation (guests cannot be added during creation)
         if user_type == "guest":
             # Find guest by partner name

@@ -58,7 +58,8 @@ class DiscussHubConnector(models.Model):
         default="none",
         help=(
             "Define if a user/guest should be created for the visitor. "
-            "Portal users have login access, while guests can only participate in channels."
+            "Portal users have login access, while guests can only "
+            "participate in channels."
         ),
     )
     url = fields.Char(required=False)
@@ -291,7 +292,7 @@ class DiscussHubConnector(models.Model):
             f"author_id:{message.author_id if message else 'None'} "
             f"reproduce_notification_messages:{self.reproduce_notification_messages}"
         )
-        
+
         if not self.enabled:
             _logger.warning(
                 f"action:outgo_message connector {self.name} ID {self.id} "
@@ -300,7 +301,7 @@ class DiscussHubConnector(models.Model):
                 f"{message.id if message else 'None'}"
             )
             return
-        
+
         # Check if we should skip notification messages
         if (
             not self.reproduce_notification_messages
@@ -312,38 +313,55 @@ class DiscussHubConnector(models.Model):
                 f"connector:{self.name} (reproduce_notification_messages=False)"
             )
             return
-        
+
         # Skip messages from portal/public users (they're visitors, not internal users)
         if message.author_id:
             _logger.debug(
                 f"action:outgo_message author_id:{message.author_id.id} "
                 f"name:{message.author_id.name} "
-                f"user_ids:{message.author_id.user_ids.ids if message.author_id.user_ids else 'None'}"
+                f"user_ids:{
+                    message.author_id.user_ids.ids
+                    if message.author_id.user_ids
+                    else 'None'
+                }"
             )
-            
+
             if message.author_id.user_ids:
                 author_user = message.author_id.user_ids[0]
                 _logger.debug(
                     f"action:outgo_message author_user:{author_user.id} "
                     f"login:{author_user.login}"
                 )
-                
-                portal_group = self.env.ref("base.group_portal", raise_if_not_found=False)
-                public_group = self.env.ref("base.group_public", raise_if_not_found=False)
-                
+
+                portal_group = self.env.ref(
+                    "base.group_portal", raise_if_not_found=False
+                )
+                public_group = self.env.ref(
+                    "base.group_public", raise_if_not_found=False
+                )
+
                 _logger.debug(
-                    f"action:outgo_message portal_group:{portal_group.id if portal_group else 'None'} "
+                    f"action:outgo_message "
+                    f"portal_group:{portal_group.id if portal_group else 'None'} "
                     f"public_group:{public_group.id if public_group else 'None'}"
                 )
-                
+
                 # Check if user is in portal or public group using has_group method
-                is_portal = author_user.has_group('base.group_portal') if portal_group else False
-                is_public = author_user.has_group('base.group_public') if public_group else False
-                
+                is_portal = (
+                    author_user.has_group("base.group_portal")
+                    if portal_group
+                    else False
+                )
+                is_public = (
+                    author_user.has_group("base.group_public")
+                    if public_group
+                    else False
+                )
+
                 _logger.debug(
                     f"action:outgo_message is_portal:{is_portal} is_public:{is_public}"
                 )
-                
+
                 if is_portal:
                     _logger.info(
                         f"action:outgo_message SKIPPING message_id:{message.id} "
@@ -358,12 +376,12 @@ class DiscussHubConnector(models.Model):
                         f"connector:{self.name}"
                     )
                     return
-        
+
         _logger.info(
             f"action:outgo_message SENDING message_id:{message.id} "
             f"message_type:{message.message_type} to connector:{self.name}"
         )
-        
+
         plugin = self.get_plugin()
         return plugin.outgo_message(channel, message)
 

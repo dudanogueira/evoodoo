@@ -327,12 +327,13 @@ class Plugin(PluginBase):
             the code is available as a data import
         """
         sent_message_id = None
-        # Send text message only if there's actual text content (not just whitespace/empty HTML)
+        # Send text message only if there's actual text content
+        # (not just whitespace/empty HTML)
         body_text = message.body.strip() if message.body else ""
         # Remove common empty HTML patterns
-        if body_text in ['<p><br></p>', '<p></p>', '<br>', '<br/>', '']:
+        if body_text in ["<p><br></p>", "<p></p>", "<br>", "<br/>", ""]:
             body_text = ""
-        
+
         if body_text:
             sent_message = self.send_text_message(channel, message)
             sent_message_id = sent_message.json().get("key", {}).get("id")
@@ -513,7 +514,7 @@ class Plugin(PluginBase):
         for attachment in message.attachment_ids:
             # Determine media type - check mimetype first, then index_content
             mimetype = attachment.mimetype or ""
-            
+
             if attachment.index_content in ["image", "video", "audio"]:
                 mediatype = attachment.index_content
             elif mimetype.startswith("audio/"):
@@ -524,19 +525,23 @@ class Plugin(PluginBase):
                 mediatype = "image"
             else:
                 mediatype = "document"
-            
+
             filename = "audio.ogg" if mediatype == "audio" else attachment.name
 
-            # Use sendWhatsAppAudio endpoint for audio files to make them playable as voice message
+            # Use sendWhatsAppAudio endpoint for audio files to make them
+            # playable as voice message
             if mediatype == "audio":
-                url = f"{base_url}/message/sendWhatsAppAudio/{channel.discuss_hub_connector.name}"
-                
+                url = (
+                    f"{base_url}/message/sendWhatsAppAudio/"
+                    f"{channel.discuss_hub_connector.name}"
+                )
+
                 # Check if attachment has a public URL, otherwise use base64
-                if hasattr(attachment, 'public_url') and attachment.public_url:
+                if hasattr(attachment, "public_url") and attachment.public_url:
                     # Use direct URL (more efficient for large files)
                     audio_source = attachment.public_url
                     _logger.info(
-                        f"action:send_whatsapp_audio mode:url "
+                        "action:send_whatsapp_audio mode:url "
                         + f"url:{audio_source} channel:{channel.name}"
                     )
                 else:
@@ -545,17 +550,19 @@ class Plugin(PluginBase):
                     mimetype = attachment.mimetype or "audio/ogg"
                     audio_source = f"data:{mimetype};base64,{audio_base64}"
                     _logger.info(
-                        f"action:send_whatsapp_audio mode:base64 "
+                        "action:send_whatsapp_audio mode:base64 "
                         + f"mimetype:{mimetype} size:{len(audio_base64)} "
                         + f"channel:{channel.name}"
                     )
-                
+
                 payload = {
                     "number": channel.discuss_hub_outgoing_destination,
                     "audio": audio_source,
                 }
             else:
-                url = f"{base_url}/message/sendMedia/{channel.discuss_hub_connector.name}"
+                url = (
+                    f"{base_url}/message/sendMedia/{channel.discuss_hub_connector.name}"
+                )
                 payload = {
                     "number": channel.discuss_hub_outgoing_destination,
                     "mediatype": mediatype,
@@ -976,28 +983,28 @@ class Plugin(PluginBase):
             "video_message": message.id,
         }
 
-    def handle_audio_message(self, data, channel, partner, message_id):  
-        """Handle audio messages"""  
-        content_base64 = data.get("message", {}).get("base64", {})  
-        decoded_data = base64.b64decode(content_base64)  
-        file_name = "audio.ogg"  
-        
-        # Create attachment with voice metadata  
-        attachments = [(file_name, decoded_data, {'voice': True})]  # Add voice metadata  
-        
-        # Determine author - use parent contact if available (consistent)  
-        author = partner.parent_id.id if partner.parent_id else partner.id  
-        
-        # Post message  
-        message_text = "audio"  
-        message = channel.message_post(  
-            author_id=author,  
-            body=message_text,  
-            message_type="comment",  
-            subtype_xmlid="mail.mt_comment",  
-            attachments=attachments,  
-            message_id=message_id,  
-        )  
+    def handle_audio_message(self, data, channel, partner, message_id):
+        """Handle audio messages"""
+        content_base64 = data.get("message", {}).get("base64", {})
+        decoded_data = base64.b64decode(content_base64)
+        file_name = "audio.ogg"
+
+        # Create attachment with voice metadata
+        attachments = [(file_name, decoded_data, {"voice": True})]  # Add voice metadata
+
+        # Determine author - use parent contact if available (consistent)
+        author = partner.parent_id.id if partner.parent_id else partner.id
+
+        # Post message
+        message_text = "audio"
+        message = channel.message_post(
+            author_id=author,
+            body=message_text,
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachments=attachments,
+            message_id=message_id,
+        )
         message.write({"discuss_hub_message_id": message_id})
 
         _logger.info(

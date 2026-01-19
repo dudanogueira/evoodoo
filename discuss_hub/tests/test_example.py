@@ -1,5 +1,4 @@
 import json
-from unittest.mock import patch, MagicMock
 
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
