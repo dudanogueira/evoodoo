@@ -217,7 +217,7 @@ class TestCodeHooks(TransactionCase):
                 "name": "Portal User",
                 "login": "portal_user_test",
                 "email": "portal@test.com",
-                "groups_id": [(6, 0, [portal_group.id])],
+                "group_ids": [(6, 0, [portal_group.id])],
             }
         )
 

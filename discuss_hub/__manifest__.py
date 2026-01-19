@@ -4,7 +4,7 @@
     "author": "Discuss Hub Community",
     "website": "https://github.com/discusshub/discuss_hub",
     "category": "marketing",
-    "version": "19.0.0.0.11",
+    "version": "19.0.0.11",
     "license": "AGPL-3",
     "application": True,
     "installable": True,

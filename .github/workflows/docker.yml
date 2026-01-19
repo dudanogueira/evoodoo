@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - '18.0'
+      - '19.0'
     tags:
       - 'v*'
 
   pull_request:
     branches:
       - '18.0'
+      - '19.0'
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -44,5 +46,6 @@ jobs:
             ${{ steps.meta.outputs.tags }}
             ${{ (startsWith(github.ref, 'refs/heads/18.0') || startsWith(github.ref, 'refs/tags/v18')) && 'discusshub/discuss_hub:latest' || '' }}
             ${{ (startsWith(github.ref, 'refs/heads/18.0') || startsWith(github.ref, 'refs/tags/v18')) && 'discusshub/discuss_hub:18' || '' }}
+            ${{ (startsWith(github.ref, 'refs/heads/19.0') || startsWith(github.ref, 'refs/tags/v19')) && 'discusshub/discuss_hub:19' || '' }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64

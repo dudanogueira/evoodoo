@@ -14,7 +14,7 @@ This test suite covers the evolution plugin functionality including:
 """
 
 import base64
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 
 import requests
 

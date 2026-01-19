@@ -10,7 +10,7 @@ Tests cover:
 """
 
 import base64
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
@@ -23,6 +23,22 @@ class TestBotManagerBase(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        
+        # Mock HTTP requests to prevent external calls during tests
+        cls.patcher_requests_get = patch('requests.get')
+        cls.patcher_requests_post = patch('requests.post')
+        
+        mock_get = cls.patcher_requests_get.start()
+        mock_post = cls.patcher_requests_post.start()
+        
+        # Configure mocks to return empty/error responses
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.content = b''
+        mock_response.json.return_value = {}
+        mock_response.text = '{}'
+        mock_get.return_value = mock_response
+        mock_post.return_value = mock_response
 
         # Create connector for channels
         cls.connector = cls.env["discuss_hub.connector"].create(
@@ -62,6 +78,13 @@ class TestBotManagerBase(TransactionCase):
                 "phone": "+5511999999999",
             }
         )
+
+    @classmethod
+    def tearDownClass(cls):
+        """Clean up after all tests."""
+        cls.patcher_requests_get.stop()
+        cls.patcher_requests_post.stop()
+        super().tearDownClass()
 
 
 @tagged("discuss_hub", "bot_manager", "generic")

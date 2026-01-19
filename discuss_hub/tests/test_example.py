@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch, MagicMock
 
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
@@ -7,11 +8,11 @@ from odoo.tests.common import HttpCase
 @tagged("discuss_hub", "plugin_base")
 class TestExamplePlugin(HttpCase):
     @classmethod
-    def setUpClass(self):
+    def setUpClass(cls):
         # add env on cls and many other things
         super().setUpClass()
         # create a connector
-        self.connector = self.env["discuss_hub.connector"].create(
+        cls.connector = cls.env["discuss_hub.connector"].create(
             {
                 "name": "test_example_plugin",
                 "type": "example",
@@ -21,7 +22,7 @@ class TestExamplePlugin(HttpCase):
                 "api_key": "1234567890",
             }
         )
-        self.plugin = self.connector.get_plugin()
+        cls.plugin = cls.connector.get_plugin()
 
     def test_example_plugin_new_message(self):
         """

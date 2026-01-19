@@ -3,7 +3,16 @@
 To run the tests, You can use Docker to set up an Odoo instance with the
 necessary dependencies.
 
-`` `bash docker compose -f compose-dev.yaml run --rm odoo odoo --dev=all --db-filter='^test_only$' -d test_only --stop-after-init --test-enable --without-demo=all -i discuss_hub --test-tags /discuss_hub ``\`
+`` `bash
+# Run all discuss_hub tests (use -u for update, not -i for install)
+docker compose -f compose-dev.yaml run --rm odoo odoo --dev=all --db-filter='^test_only$' -d test_only --stop-after-init --test-enable --test-tags=discuss_hub -u discuss_hub
+
+# Run specific test tags
+docker compose -f compose-dev.yaml run --rm odoo odoo --dev=all --db-filter='^test_only$' -d test_only --stop-after-init --test-enable --test-tags=discuss_hub,plugin_evolution -u discuss_hub
+
+# Run specific test files by path (requires / prefix)
+docker compose -f compose-dev.yaml run --rm odoo odoo --dev=all --db-filter='^test_only$' -d test_only --stop-after-init --test-enable --test-tags=/discuss_hub/test_evolution,/discuss_hub/test_base -u discuss_hub
+``\`
 
 \# Run pre-commit locally without changing the addon README:
 `` `bash SKIP="oca-gen-addon-readme" pre-commit run --all-files --show-diff-on-failure --color=always ``\`

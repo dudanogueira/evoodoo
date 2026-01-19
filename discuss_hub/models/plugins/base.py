@@ -124,8 +124,7 @@ class Plugin:
                     + "REOPENING CHANNEL"
                 )
                 archived_channel.add_members(
-                    partner_ids=[p.id for p in partners_to_add],
-                    open_chat_window=True,
+                    partner_ids=[p.id for p in partners_to_add]
                 )
                 # broadcast as new channel
                 archived_channel._broadcast(
@@ -218,14 +217,16 @@ class Plugin:
                         if user_type == "portal"
                         else "base.group_public"
                     )
-                    group = self.connector.env.ref(group_xml_id).id
+                    # Create user without groups first
                     user_vals = {
                         "name": parent_partner.name,
                         "login": contact_identifier,
                         "partner_id": parent_partner.id,
-                        "groups_id": [(4, group)],
                     }
-                    self.connector.env["res.users"].create(user_vals)
+                    new_user = self.connector.env["res.users"].create(user_vals)
+                    # Add user to group - use Command.set() to replace all groups
+                    group = self.connector.env.ref(group_xml_id)
+                    new_user.sudo().write({"group_ids": [Command.set([group.id])]})
 
             # Create contact partner
             partner_contact = self.connector.env["res.partner"].create(
@@ -260,18 +261,16 @@ class Plugin:
                         if user_type == "portal"
                         else "base.group_public"
                     )
-                    group = self.connector.env.ref(group_xml_id)
-                    
-                    # Create user with minimal vals
+                    # Create user without groups first
                     user_vals = {
                         "name": parent_partner.name,
                         "login": parent_partner[self.connector.partner_contact_field],
                         "partner_id": parent_partner.id,
                     }
                     new_user = self.connector.env["res.users"].create(user_vals)
-                    
-                    # Add user to group using the inverse relation
-                    group.write({"users": [(4, new_user.id)]})
+                    # Set groups using write with sudo - use group_ids with Command.set()
+                    group = self.connector.env.ref(group_xml_id)
+                    new_user.sudo().write({"group_ids": [Command.set([group.id])]})
 
         # TODO: Update contact name if changed
 
