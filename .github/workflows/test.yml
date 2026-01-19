@@ -39,13 +39,17 @@ jobs:
       matrix:
         include:
           - container: ghcr.io/oca/oca-ci/py3.10-odoo18.0:latest
-            name: test with Odoo
+            name: test with Odoo 18.0
+            branch_pattern: "18.0"
+          - container: ghcr.io/oca/oca-ci/py3.10-odoo19.0:latest
+            name: test with Odoo 19.0
+            branch_pattern: "19.0"
           # - container: ghcr.io/oca/oca-ci/py3.10-ocb18.0:latest
           #   name: test with OCB
           #   makepot: "true"
     services:
       postgres:
-        image: postgres:16.0
+        image: postgres:17
         env:
           POSTGRES_USER: odoo
           POSTGRES_PASSWORD: odoo
@@ -54,6 +58,7 @@ jobs:
           - 5432:5432
     # env:
     #   OCA_ENABLE_CHECKLOG_ODOO: "0"
+    if: startsWith(github.ref, format('refs/heads/{0}', matrix.branch_pattern)) || startsWith(github.base_ref, matrix.branch_pattern)
     steps:
       - uses: actions/checkout@v4
         with:

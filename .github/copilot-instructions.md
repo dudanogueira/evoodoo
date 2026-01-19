@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-Discuss Hub is an Odoo 18.0 addon that integrates third-party messaging channels (WhatsApp, Telegram, etc.) into Odoo's Discuss system through a **plugin-based architecture**.
+Discuss Hub is an Odoo 19.0 addon that integrates third-party messaging channels (WhatsApp, Telegram, etc.) into Odoo's Discuss system through a **plugin-based architecture**.
 
 ### Core Components
 
@@ -125,6 +125,6 @@ _logger.error(f"action:json_decode_error payload:{payload}")
 - Static assets: `discuss_hub/static/src/js/`
 
 ## Branch Strategy
-- Main development: `18.0` branch
+- Main development: `19.0` branch
 - Feature branches: `melhorias/feature-name` or `feature/feature-name`
 - Current active branch: `melhorias/qualidade-codigo`
