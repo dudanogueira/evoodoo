@@ -316,14 +316,13 @@ class DiscussHubConnector(models.Model):
 
         # Skip messages from portal/public users (they're visitors, not internal users)
         if message.author_id:
+            user_ids = (
+                message.author_id.user_ids.ids if message.author_id.user_ids else "None"
+            )
             _logger.debug(
                 f"action:outgo_message author_id:{message.author_id.id} "
                 f"name:{message.author_id.name} "
-                f"user_ids:{
-                    message.author_id.user_ids.ids
-                    if message.author_id.user_ids
-                    else 'None'
-                }"
+                f"user_ids:{user_ids}"
             )
 
             if message.author_id.user_ids:
