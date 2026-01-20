@@ -199,9 +199,32 @@ class Plugin(PluginBase):
                 ],
                 limit=1,
             )
-            channel_member._mark_as_read(message.id, sync=True)
+            
+            if not channel_member:
+                _logger.info(
+                    "action:process_payload"
+                    + f"event:message.update.read({discuss_hub_message_id})"
+                    + f" channel_member: not found for partner {partner.id} in channel {channel_id}"
+                )
+                return {
+                    "success": False,
+                    "action": "process_payload",
+                    "event": "messages.update.mark_read",
+                    "error": "Channel member not found",
+                }
+            
+            channel_member._mark_as_read(message.id)
 
-        message = self.connector.env["mail.message"].search(
-            [("discuss_hub_message_id", "=", discuss_hub_message_id)], limit=1
-        )
-        return True
+            return {
+                "success": True,
+                "action": "process_payload",
+                "event": "messages.update.mark_read",
+            }
+        
+        # If no message_id provided
+        return {
+            "success": False,
+            "action": "process_payload",
+            "event": "messages.update.mark_read",
+            "error": "No message_id provided",
+        }
