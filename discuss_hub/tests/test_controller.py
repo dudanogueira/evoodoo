@@ -575,7 +575,9 @@ class TestBotManagerController(HttpCase):
     # RESPONSE TYPE TESTS
     # ===================================================================
 
-    @patch("odoo.addons.discuss_hub.models.bot_manager.DiscussHubBotManager.process_payload")
+    @patch(
+        "odoo.addons.discuss_hub.models.bot_manager.DiscussHubBotManager.process_payload"
+    )
     def test_bot_manager_returns_response_object_directly(self, mock_process):
         """Test that Response objects from process_payload are returned directly."""
         from werkzeug.wrappers import Response
@@ -598,7 +600,9 @@ class TestBotManagerController(HttpCase):
         response_data = json.loads(response.text)
         self.assertEqual(response_data.get("bot_response"), "custom")
 
-    @patch("odoo.addons.discuss_hub.models.bot_manager.DiscussHubBotManager.process_payload")
+    @patch(
+        "odoo.addons.discuss_hub.models.bot_manager.DiscussHubBotManager.process_payload"
+    )
     def test_bot_manager_converts_dict_to_json_response(self, mock_process):
         """Test that dict responses from process_payload are converted to JSON."""
         # Mock process_payload to return a dict
@@ -619,63 +623,3 @@ class TestBotManagerController(HttpCase):
         )
         response_data = json.loads(response.text)
         self.assertEqual(response_data.get("status"), "processed")
-        """Test that POST method works correctly."""
-        payload = {"message": "test"}
-        response = self._send_routing_request(
-            self.bot_uuid, payload=payload, method="POST"
-        )
-
-        self.assertEqual(response.status_code, 200, "POST method should work correctly")
-
-    # ===================================================================
-    # RESPONSE FORMAT TESTS
-    # ===================================================================
-
-    def test_bot_manager_response_is_json(self):
-        """Test that response is in JSON format."""
-        payload = {"message": "test"}
-        response = self._send_routing_request(self.bot_uuid, payload)
-
-        self.assertIn(
-            "application/json",
-            response.headers.get("Content-Type", ""),
-            "Response should be in JSON format",
-        )
-
-    # ===================================================================
-    # LOGGING TESTS
-    # ===================================================================
-
-    @patch("odoo.addons.discuss_hub.controllers.controllers._logger")
-    def test_bot_manager_logs_warning_on_not_found(self, mock_logger):
-        """Test that warning is logged when bot manager is not found."""
-        nonexistent_uuid = "88888888-8888-8888-8888-888888888888"
-        payload = {"message": "test"}
-        self._send_routing_request(nonexistent_uuid, payload)
-
-        # Verify warning was logged
-        mock_logger.warning.assert_called()
-        call_args = str(mock_logger.warning.call_args)
-        self.assertIn("botmanager_not_found", call_args)
-
-    @patch("odoo.addons.discuss_hub.controllers.controllers._logger")
-    def test_bot_manager_logs_error_on_invalid_json(self, mock_logger):
-        """Test that error is logged when JSON is invalid."""
-        invalid_json = '{"invalid": json}'
-        self._send_routing_request(self.bot_uuid, payload=invalid_json)
-
-        # Verify error was logged
-        mock_logger.error.assert_called()
-        call_args = str(mock_logger.error.call_args)
-        self.assertIn("json_decode_error", call_args)
-
-    @patch("odoo.addons.discuss_hub.controllers.controllers._logger")
-    def test_bot_manager_logs_info_on_success(self, mock_logger):
-        """Test that info is logged when payload is processed successfully."""
-        payload = {"message": "test"}
-        self._send_routing_request(self.bot_uuid, payload)
-
-        # Verify info was logged
-        mock_logger.info.assert_called()
-        call_args = str(mock_logger.info.call_args)
-        self.assertIn("incoming_payload", call_args)

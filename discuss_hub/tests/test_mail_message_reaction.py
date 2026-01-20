@@ -271,7 +271,7 @@ class TestMailMessageReaction(TransactionCase):
             mock_outgo_reaction.return_value = {"success": True}
 
             # Create a reaction
-            reaction = self.env["mail.message.reaction"].create(
+            self.env["mail.message.reaction"].create(
                 {
                     "message_id": self.message.id,
                     "partner_id": self.partner.id,
