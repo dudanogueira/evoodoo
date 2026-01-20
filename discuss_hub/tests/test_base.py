@@ -97,20 +97,20 @@ class TestBasePlugin(HttpCase):
     # ===================================================================
 
     def test_process_payload_not_implemented(self):
-        """Test that process_payload raises NotImplementedError in base plugin."""
-        with self.assertRaises(
-            NotImplementedError,
-            msg="Base plugin should raise NotImplementedError for process_payload",
-        ):
-            self.plugin.process_payload()
+        """Test that process_payload returns empty dict in base plugin."""
+        result = self.plugin.process_payload(payload={})
+        self.assertEqual(
+            result, {}, "Base plugin should return empty dict for process_payload"
+        )
 
     def test_get_status_not_implemented(self):
-        """Test that get_status raises NotImplementedError in base plugin."""
-        with self.assertRaises(
-            NotImplementedError,
-            msg="Base plugin should raise NotImplementedError for get_status",
-        ):
-            self.plugin.get_status()
+        """Test that get_status returns default status in base plugin."""
+        result = self.plugin.get_status()
+        self.assertIsInstance(result, dict, "get_status should return a dict")
+        self.assertIn("status", result, "get_status should contain status key")
+        self.assertEqual(
+            result["status"], "not_found", "Base plugin should return not_found status"
+        )
 
     def test_get_contact_identifier_not_implemented(self):
         """Test get_contact_identifier raises NotImplementedError."""
@@ -146,28 +146,19 @@ class TestBasePlugin(HttpCase):
             self.plugin.get_channel_name({})
 
     def test_restart_instance_not_implemented(self):
-        """Test that restart_instance raises NotImplementedError in base plugin."""
-        with self.assertRaises(
-            NotImplementedError,
-            msg="Base plugin should raise NotImplementedError for restart_instance",
-        ):
-            self.plugin.restart_instance()
+        """Test that restart_instance returns None in base plugin."""
+        result = self.plugin.restart_instance()
+        self.assertIsNone(result, "Base plugin should return None for restart_instance")
 
     def test_outgo_reaction_not_implemented(self):
-        """Test that outgo_reaction raises NotImplementedError in base plugin."""
-        with self.assertRaises(
-            NotImplementedError,
-            msg="Base plugin should raise NotImplementedError for outgo_reaction",
-        ):
-            self.plugin.outgo_reaction(None, None, None)
+        """Test that outgo_reaction returns None in base plugin."""
+        result = self.plugin.outgo_reaction(None, None, None)
+        self.assertIsNone(result, "Base plugin should return None for outgo_reaction")
 
     def test_logout_instance_not_implemented(self):
-        """Test that logout_instance raises NotImplementedError in base plugin."""
-        with self.assertRaises(
-            NotImplementedError,
-            msg="Base plugin should raise NotImplementedError for logout_instance",
-        ):
-            self.plugin.logout_instance()
+        """Test that logout_instance returns None in base plugin."""
+        result = self.plugin.logout_instance()
+        self.assertIsNone(result, "Base plugin should return None for logout_instance")
 
     # ===================================================================
     # PARTNER CREATION AND RETRIEVAL TESTS

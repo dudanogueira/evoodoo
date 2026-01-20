@@ -422,7 +422,8 @@ class DiscussHubConnector(models.Model):
         for team in self.automatic_added_teams:
             new_member = team.get_next_team_member(connector=connector)
             if new_member:
-                partners.append(new_member)
+                # new_member is a res.users, we need to get its partner
+                partners.append(new_member.partner_id)
         _logger.info(
             f"action:get_initial_routed_partners connector {self.name} "
             f"for channel {connector.name if connector else 'None'}: {partners}"
@@ -430,7 +431,7 @@ class DiscussHubConnector(models.Model):
         return set(partners)
 
 
-class DiscussHubSocialNetworkeType(models.Model):
+class DiscussHubSocialNetworkType(models.Model):
     _name = "discuss_hub.social_network_type"
     _description = "Social Network Types"
 

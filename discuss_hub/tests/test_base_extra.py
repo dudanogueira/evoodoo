@@ -20,15 +20,33 @@ class TestBasePluginExtra(HttpCase):
         self.plugin = self.connector.get_plugin()
 
     def test_not_implemented_methods_raise(self):
-        """Ensure stub methods raise NotImplementedError"""
-        with self.assertRaises(NotImplementedError):
-            self.plugin.restart_instance()
+        """Ensure stub methods have default implementations"""
+        # Debug: verify we're testing the base plugin
+        self.assertEqual(self.connector.type, "base", "Connector should be type 'base'")
+        self.assertEqual(
+            self.plugin.plugin_name,
+            "base",
+            f"Plugin should be 'base' but got '{self.plugin.plugin_name}'",
+        )
 
-        with self.assertRaises(NotImplementedError):
-            self.plugin.outgo_reaction(None, None, None)
+        # These methods now have default implementations
+        # that return values instead of raising
+        result = self.plugin.restart_instance()
+        self.assertIsNone(result, "restart_instance should return None")
 
-        with self.assertRaises(NotImplementedError):
-            self.plugin.logout_instance()
+        result = self.plugin.outgo_reaction(None, None, None)
+        self.assertIsNone(result, "outgo_reaction should return None")
+
+        result = self.plugin.logout_instance()
+        self.assertIsNone(result, "logout_instance should return None")
+
+        result = self.plugin.process_payload({})
+        self.assertEqual(result, {}, "process_payload should return empty dict")
+
+        # get_status should return a dict with status
+        result = self.plugin.get_status()
+        self.assertIsInstance(result, dict)
+        self.assertIn("status", result)
 
     def test_get_or_create_partner_create_contact_false_existing(self):
         """When partner exists and create_contact=False, return parent partner"""
