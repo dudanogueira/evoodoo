@@ -1,3 +1,4 @@
+from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
 
@@ -305,3 +306,226 @@ class TestBasePlugin(HttpCase):
         # Get next team member - should be None
         next_member = team.get_next_team_member()
         self.assertIsNone(next_member)
+
+    def test_routing_manager_action_forward_with_agent(self):
+        """Test forwarding a channel to a specific agent."""
+        # Create an agent user
+        agent_user = self.env["res.users"].create(
+            {"name": "Agent User", "login": "agentuser", "active": True}
+        )
+
+        # Create a channel
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Test Channel",
+                "channel_type": "channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        # Add current user as member
+        channel.add_members([self.env.user.partner_id.id])
+
+        # Create routing manager wizard
+        wizard = self.env["discuss_hub.routing_manager"].create(
+            {
+                "channel_ids": [(6, 0, [channel.id])],
+                "agent": agent_user.id,
+            }
+        )
+
+        # Execute forward action
+        result = wizard.action_forward()
+
+        # Verify agent was added to channel
+        member_ids = channel.channel_member_ids.mapped("partner_id.id")
+        self.assertIn(
+            agent_user.partner_id.id,
+            member_ids,
+            "Agent should be added as channel member",
+        )
+
+        # Verify action returned close window
+        self.assertEqual(result.get("type"), "ir.actions.act_window_close")
+
+    def test_routing_manager_action_forward_with_team(self):
+        """Test forwarding a channel to a team using round robin strategy."""
+        # Create a routing team
+        team = self.env["discuss_hub.routing_team"].create(
+            {
+                "name": "Forward Team",
+                "routing_strategy": "round_robin",
+                "connector_id": self.connector.id,
+                "online_users_only": False,
+            }
+        )
+
+        # Create team members
+        users = self.env["res.users"].create(
+            [
+                {
+                    "name": f"Team Member {i}",
+                    "login": f"teammember{i}",
+                    "active": True,
+                }
+                for i in range(1, 3)
+            ]
+        )
+
+        # Add users to team
+        for i, user in enumerate(users):
+            self.env["discuss_hub.routing_team_member"].create(
+                {
+                    "team_id": team.id,
+                    "user_id": user.id,
+                    "count": 0,
+                    "order": i + 1,
+                }
+            )
+
+        # Create a channel
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Team Channel",
+                "channel_type": "channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        # Add current user as member
+        channel.add_members([self.env.user.partner_id.id])
+
+        # Create routing manager wizard with team
+        wizard = self.env["discuss_hub.routing_manager"].create(
+            {
+                "channel_ids": [(6, 0, [channel.id])],
+                "team": team.id,
+            }
+        )
+
+        # Execute forward action
+        result = wizard.action_forward()
+
+        # Verify first team member was added to channel
+        member_ids = channel.channel_member_ids.mapped("partner_id.id")
+        self.assertIn(
+            users[0].partner_id.id,
+            member_ids,
+            "First team member should be added as channel member",
+        )
+
+        # Verify action returned close window
+        self.assertEqual(result.get("type"), "ir.actions.act_window_close")
+
+    def test_routing_manager_action_forward_with_note(self):
+        """Test forwarding a channel with a note message."""
+        # Create an agent user
+        agent_user = self.env["res.users"].create(
+            {"name": "Agent With Note", "login": "agentnote", "active": True}
+        )
+
+        # Create a channel
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Note Channel",
+                "channel_type": "channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        # Add current user as member
+        channel.add_members([self.env.user.partner_id.id])
+
+        # Create routing manager wizard with note
+        note_text = "This is an important context note for the agent"
+        wizard = self.env["discuss_hub.routing_manager"].create(
+            {
+                "channel_ids": [(6, 0, [channel.id])],
+                "agent": agent_user.id,
+                "note": note_text,
+            }
+        )
+
+        # Execute forward action
+        result = wizard.action_forward()
+
+        # Verify note was posted as notification
+        messages = channel.message_ids.filtered(
+            lambda m: m.message_type == "notification"
+        )
+        self.assertTrue(messages, "A notification message should be posted")
+        self.assertIn(
+            note_text,
+            messages[0].body,
+            "Note text should be in the message body",
+        )
+
+        # Verify action returned close window
+        self.assertEqual(result.get("type"), "ir.actions.act_window_close")
+
+    def test_routing_manager_constraint_agent_or_team_required(self):
+        """Test ValidationError when neither agent nor team is selected."""
+        # Create a channel
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Constraint Channel",
+                "channel_type": "channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        # Create wizard first (fields are optional initially)
+        wizard = self.env["discuss_hub.routing_manager"].create(
+            {
+                "channel_ids": [(6, 0, [channel.id])],
+            }
+        )
+
+        # Try to call action_forward without agent or team - should fail at constraint
+        # But constraint only checks on write/create with values
+        # Let's verify the constraint works by writing False values
+        with self.assertRaises(
+            ValidationError, msg="Should raise ValidationError when no agent/team"
+        ):
+            wizard.write({"agent": False, "team": False})
+
+    def test_archive_manager_action_archive(self):
+        """Test archiving a channel with a close message."""
+        # Create a channel
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Archive Channel",
+                "channel_type": "channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        # Add current user as member
+        channel.add_members([self.env.user.partner_id.id])
+
+        # Verify channel is active
+        self.assertTrue(channel.active, "Channel should be active initially")
+
+        # Create archive manager wizard
+        close_msg = "Thank you for contacting us. This conversation is now closed."
+        wizard = self.env["discuss_hub.archive_manager"].create(
+            {
+                "channel_ids": [(6, 0, [channel.id])],
+                "close_message": close_msg,
+                "send_close_message": True,
+            }
+        )
+
+        # Execute archive action
+        result = wizard.action_archive()
+
+        # Verify close message was posted
+        messages = channel.message_ids.filtered(lambda m: m.message_type == "comment")
+        self.assertTrue(messages, "A comment message should be posted")
+        self.assertIn(close_msg, messages[0].body, "Close message should be posted")
+
+        # Verify channel was archived
+        self.assertFalse(channel.active, "Channel should be archived")
+
+        # Verify action returned close window
+        self.assertEqual(result.get("type"), "ir.actions.act_window_close")
