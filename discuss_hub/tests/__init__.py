@@ -14,4 +14,5 @@ from . import (
     test_guest_channel_creation,
     test_webhook_user_creation,
     test_simple,
+    test_mail_message_reaction,
 )
