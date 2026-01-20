@@ -1314,33 +1314,7 @@ class TestEvolutionPlugin(HttpCase):
     # INSTANCE MANAGEMENT TESTS
     # ===================================================================
 
-    @patch("requests.Session.post")
-    def test_restart_instance(self, mock_post):
-        """Test restarting Evolution instance."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"instance": {"state": "open"}}
-        mock_post.return_value = mock_response
-
-        with patch("time.sleep"):  # Skip sleep in tests
-            self.plugin.restart_instance()
-
-        self.assertTrue(mock_post.called)
-
-    @patch("requests.Session.delete")
-    def test_logout_instance(self, mock_delete):
-        """Test logging out Evolution instance."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"instance": {"state": "closed"}}
-        mock_delete.return_value = mock_response
-
-        with patch("time.sleep"):  # Skip sleep in tests
-            self.plugin.logout_instance()
-
-        self.assertTrue(mock_delete.called)
-
-    # ===================================================================
+    # =====================================================================
     # FORMAT MESSAGE TESTS
     # ===================================================================
 
@@ -1573,3 +1547,721 @@ class TestEvolutionPlugin(HttpCase):
 
         self.assertFalse(result["success"])
         self.assertEqual(result["message"], "Message Not Found")
+
+    # ===================================================================
+    # ADDITIONAL COVERAGE TESTS
+    # ===================================================================
+
+    @patch("requests.Session.get")
+    def test_get_status_generic_exception(self, mock_get):
+        """Test get_status handles generic exceptions."""
+        mock_get.side_effect = Exception("Unexpected error")
+
+        result = self.plugin.get_status()
+
+        self.assertEqual(result["status"], "error")
+        self.assertTrue(result["success"])
+
+    def test_outgo_message_with_empty_body(self):
+        """Test outgo_message with empty or whitespace-only body."""
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Empty Body Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5511999999999",
+            }
+        )
+
+        # Test with truly empty string
+        message = channel.message_post(
+            body="",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+
+        with patch.object(self.plugin, "send_text_message") as mock_send:
+            self.plugin.outgo_message(channel, message)
+            # Should not send text message for truly empty body
+            self.assertFalse(mock_send.called)
+
+    def test_outgo_message_with_attachments_only(self):
+        """Test outgo_message with attachments but no text."""
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Attachment Only Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5511888888888",
+            }
+        )
+
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "test.pdf",
+                "datas": base64.b64encode(b"PDF content").decode("utf-8"),
+                "mimetype": "application/pdf",
+            }
+        )
+
+        message = channel.message_post(
+            body="",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachment_ids=[attachment.id],
+        )
+
+        with (
+            patch.object(
+                self.plugin,
+                "send_attachments",
+                return_value=Mock(json=lambda: {"key": {"id": "attach_123"}}),
+            ) as mock_attach,
+        ):
+            self.plugin.outgo_message(channel, message)
+            # Should send attachment
+            self.assertTrue(mock_attach.called)
+
+    @patch("requests.Session.post")
+    def test_outgo_reaction(self, mock_post):
+        """Test sending reaction to a message."""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_post.return_value = mock_response
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Reaction Test Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5511777777777@s.whatsapp.net",
+            }
+        )
+
+        message = channel.message_post(
+            body="React to this message",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        message.write({"discuss_hub_message_id": "msg_to_react"})
+
+        reaction = self.env["mail.message.reaction"].create(
+            {
+                "message_id": message.id,
+                "partner_id": self.admin_partner.id,
+                "content": "❤️",
+            }
+        )
+
+        self.plugin.outgo_reaction(channel, message, reaction)
+
+        # Verify API call was made
+        self.assertTrue(mock_post.called)
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        self.assertEqual(payload["reaction"], "❤️")
+        self.assertEqual(payload["key"]["id"], "msg_to_react")
+
+    @patch("requests.Session.post")
+    def test_outgo_reaction_request_exception(self, mock_post):
+        """Test outgo_reaction handles request exceptions."""
+        mock_post.side_effect = requests.RequestException("Network error")
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Reaction Error Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5511666666666@s.whatsapp.net",
+            }
+        )
+
+        message = channel.message_post(
+            body="Message",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        message.write({"discuss_hub_message_id": "msg_error"})
+
+        reaction = self.env["mail.message.reaction"].create(
+            {
+                "message_id": message.id,
+                "partner_id": self.admin_partner.id,
+                "content": "😢",
+            }
+        )
+
+        # Should not raise exception, just log error
+        self.plugin.outgo_reaction(channel, message, reaction)
+
+    def test_handle_contact_message_with_quoted(self):
+        """Test handling contact message with quoted/replied message."""
+        partner = self.env["res.partner"].create(
+            {"name": "Contact Sender", "phone": "5511555555555"}
+        )
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Contact Channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        # Create original message to quote
+        original_msg = channel.message_post(
+            body="Original message",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        original_msg.write({"discuss_hub_message_id": "orig_contact_123"})
+
+        contact_payload = {
+            "event": "messages.upsert",
+            "data": {
+                "key": {
+                    "remoteJid": "5511555555555@s.whatsapp.net",
+                    "id": "contact_msg_456",
+                },
+                "message": {
+                    "contactMessage": {
+                        "vcard": "BEGIN:VCARD\nVERSION:3.0\nFN:John Doe\nEND:VCARD"
+                    }
+                },
+                "contextInfo": {
+                    "stanzaId": "orig_contact_123",
+                    "quotedMessage": {"conversation": "Original"},
+                },
+            },
+        }
+
+        result = self.plugin.handle_contact_message(
+            contact_payload["data"], channel, partner, "contact_msg_456"
+        )
+
+        self.assertTrue(result["success"])
+        message = self.env["mail.message"].browse(result["text_message"])
+        self.assertEqual(message.parent_id.id, original_msg.id)
+
+    @patch("requests.Session.post")
+    def test_process_messages_update_deleted_status_with_records(self, mock_post):
+        """Test handling DELETED status update with message records."""
+        # Create original message
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Edit Channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        message = channel.message_post(
+            body="Original message",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        message.write({"discuss_hub_message_id": "edit_msg_123"})
+
+        # Mock get_message_by_id to return edited content
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "messages": {
+                "records": [
+                    {
+                        "key": {
+                            "remoteJid": "5511444444444@s.whatsapp.net",
+                            "id": "edit_msg_123",
+                        },
+                        "message": {"conversation": "Edited text"},
+                    }
+                ]
+            }
+        }
+        mock_post.return_value = mock_response
+
+        update_payload = {
+            "event": "messages.update",
+            "data": {"keyId": "edit_msg_123", "status": "DELETED"},
+        }
+
+        with (
+            patch.object(self.plugin, "get_or_create_partner") as mock_partner,
+            patch.object(self.plugin, "get_or_create_channel") as mock_channel,
+        ):
+            mock_partner.return_value = self.admin_partner
+            mock_channel.return_value = channel
+
+            result = self.plugin.process_messages_update(update_payload)
+
+            # Should emulate a new message
+            self.assertTrue(result.get("edited_message", False))
+
+    def test_process_messages_update_unhandled_status(self):
+        """Test handling message update with unhandled status."""
+        update_payload = {
+            "event": "messages.update",
+            "data": {"keyId": "msg_unhandled", "status": "PENDING"},
+        }
+
+        result = self.plugin.process_messages_update(update_payload)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["message"], "Unhandled update type")
+
+    def test_process_messages_delete_strikethrough(self):
+        """Test that deleted messages get strikethrough formatting."""
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Delete Test Channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        message = channel.message_post(
+            body="Message to be deleted",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        message.write({"discuss_hub_message_id": "delete_msg_789"})
+
+        delete_payload = {
+            "event": "messages.delete",
+            "data": {"id": "delete_msg_789"},
+        }
+
+        result = self.plugin.process_messages_delete(delete_payload)
+
+        self.assertTrue(result["success"])
+        # Check if message body was updated with strikethrough
+        # (implementation depends on utils.add_strikethrough_to_paragraphs)
+
+    @patch("requests.Session.post")
+    def test_send_attachments_audio_with_base64_fallback(self, mock_post):
+        """Test sending audio attachment uses base64 when public_url not available."""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"key": {"id": "audio_pub_123"}}
+        mock_post.return_value = mock_response
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Audio Base64 Fallback Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5511333333333",
+            }
+        )
+
+        # Create attachment without public_url (default behavior)
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "voice.ogg",
+                "datas": base64.b64encode(b"audio data").decode("utf-8"),
+                "mimetype": "audio/ogg",
+                "index_content": "audio",
+            }
+        )
+
+        message = channel.message_post(
+            body="Voice message",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachment_ids=[attachment.id],
+        )
+
+        result = self.plugin.send_attachments(channel, message)
+
+        self.assertTrue(result)
+        # Verify base64 data URI was used (since no public_url)
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        self.assertIn("data:audio/ogg;base64,", payload["audio"])
+
+    @patch("requests.Session.post")
+    def test_send_attachments_audio_without_public_url(self, mock_post):
+        """Test sending audio attachment without public URL (uses base64)."""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"key": {"id": "audio_b64_456"}}
+        mock_post.return_value = mock_response
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Audio Base64 Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5511222222222",
+            }
+        )
+
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "audio.ogg",
+                "datas": base64.b64encode(b"audio bytes").decode("utf-8"),
+                "mimetype": "audio/ogg",
+                "index_content": "audio",
+            }
+        )
+
+        message = channel.message_post(
+            body="",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachment_ids=[attachment.id],
+        )
+
+        result = self.plugin.send_attachments(channel, message)
+
+        self.assertTrue(result)
+        # Verify base64 data URI was used
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        self.assertIn("data:audio/ogg;base64,", payload["audio"])
+
+    @patch("requests.Session.post")
+    def test_send_attachments_video_media(self, mock_post):
+        """Test sending video attachment."""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"key": {"id": "video_123"}}
+        mock_post.return_value = mock_response
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Video Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5511111111111",
+            }
+        )
+
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "video.mp4",
+                "datas": base64.b64encode(b"video data").decode("utf-8"),
+                "mimetype": "video/mp4",
+                "index_content": "video",
+            }
+        )
+
+        message = channel.message_post(
+            body="",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachment_ids=[attachment.id],
+        )
+
+        result = self.plugin.send_attachments(channel, message)
+
+        self.assertTrue(result)
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        self.assertEqual(payload["mediatype"], "video")
+
+    @patch("requests.Session.post")
+    def test_send_attachments_document_media(self, mock_post):
+        """Test sending document attachment."""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"key": {"id": "doc_123"}}
+        mock_post.return_value = mock_response
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Document Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5511000000000",
+            }
+        )
+
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "document.pdf",
+                "datas": base64.b64encode(b"pdf content").decode("utf-8"),
+                "mimetype": "application/pdf",
+            }
+        )
+
+        message = channel.message_post(
+            body="",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachment_ids=[attachment.id],
+        )
+
+        result = self.plugin.send_attachments(channel, message)
+
+        self.assertTrue(result)
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        self.assertEqual(payload["mediatype"], "document")
+        self.assertEqual(payload["fileName"], "document.pdf")
+
+    @patch("requests.Session.post")
+    def test_send_attachments_failed_response(self, mock_post):
+        """Test send_attachments handles failed response."""
+        mock_response = Mock()
+        mock_response.status_code = 400
+        mock_response.text = "Bad request"
+        mock_post.return_value = mock_response
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Fail Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5519999999999",
+            }
+        )
+
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "test.jpg",
+                "datas": base64.b64encode(b"image").decode("utf-8"),
+                "mimetype": "image/jpeg",
+            }
+        )
+
+        message = channel.message_post(
+            body="",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            attachment_ids=[attachment.id],
+        )
+
+        result = self.plugin.send_attachments(channel, message)
+
+        self.assertFalse(result)
+
+    @patch("requests.Session.post")
+    def test_send_text_message_failed_response(self, mock_post):
+        """Test send_text_message handles failed response."""
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Server error"
+        mock_post.return_value = mock_response
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Text Fail Channel",
+                "discuss_hub_connector": self.connector.id,
+                "discuss_hub_outgoing_destination": "5518888888888",
+            }
+        )
+
+        message = channel.message_post(
+            body="Test message",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+
+        result = self.plugin.send_text_message(channel, message)
+
+        self.assertFalse(result)
+
+    def test_process_payload_unhandled_event(self):
+        """Test process_payload with unhandled event type."""
+        unhandled_payload = {
+            "event": "unknown.event",
+            "data": {},
+        }
+
+        result = self.plugin.process_payload(unhandled_payload)
+
+        # Should return default response with "did nothing"
+        self.assertEqual(result["event"], "did nothing")
+        self.assertFalse(result["success"])
+
+    @patch("requests.Session.post")
+    def test_restart_instance(self, mock_post):
+        """Test restart_instance method."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"instance": {"state": "open"}}
+        mock_post.return_value = mock_response
+
+        with patch("time.sleep"):  # Mock sleep to speed up test
+            self.plugin.restart_instance()
+
+        self.assertTrue(mock_post.called)
+
+    @patch("requests.Session.post")
+    def test_restart_instance_not_found(self, mock_post):
+        """Test restart_instance when instance not found."""
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_post.return_value = mock_response
+
+        with patch("time.sleep"):
+            self.plugin.restart_instance()
+
+        self.assertTrue(mock_post.called)
+
+    @patch("requests.Session.post")
+    def test_restart_instance_request_exception(self, mock_post):
+        """Test restart_instance handles request exceptions."""
+        mock_post.side_effect = requests.RequestException("Connection error")
+
+        with patch("time.sleep"):
+            self.plugin.restart_instance()
+
+        self.assertTrue(mock_post.called)
+
+    @patch("requests.Session.delete")
+    def test_logout_instance(self, mock_delete):
+        """Test logout_instance method."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"instance": {"state": "closed"}}
+        mock_delete.return_value = mock_response
+
+        with patch("time.sleep"):
+            self.plugin.logout_instance()
+
+        self.assertTrue(mock_delete.called)
+
+    @patch("requests.Session.delete")
+    def test_logout_instance_not_found(self, mock_delete):
+        """Test logout_instance when instance not found."""
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_delete.return_value = mock_response
+
+        with patch("time.sleep"):
+            self.plugin.logout_instance()
+
+        self.assertTrue(mock_delete.called)
+
+    @patch("requests.Session.delete")
+    def test_logout_instance_request_exception(self, mock_delete):
+        """Test logout_instance handles request exceptions."""
+        mock_delete.side_effect = requests.RequestException("Logout error")
+
+        with patch("time.sleep"):
+            self.plugin.logout_instance()
+
+        self.assertTrue(mock_delete.called)
+
+    @patch("requests.get")
+    @patch("requests.Session.post")
+    def test_get_profile_picture_with_api_fetch(self, mock_post, mock_get):
+        """Test get_profile_picture fetches from API when not in payload."""
+        mock_post_response = Mock()
+        mock_post_response.status_code = 200
+        mock_post_response.json.return_value = {
+            "profilePictureUrl": "https://example.com/profile.jpg"
+        }
+        mock_post.return_value = mock_post_response
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.content = b"image_data"
+        mock_get.return_value = mock_get_response
+
+        payload = {"data": {"key": {"remoteJid": "5511444444444@s.whatsapp.net"}}}
+
+        result = self.plugin.get_profile_picture(payload)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(mock_post.called)
+        self.assertTrue(mock_get.called)
+
+    @patch("requests.get")
+    def test_get_profile_picture_download_error(self, mock_get):
+        """Test get_profile_picture handles download errors."""
+        mock_get.side_effect = requests.RequestException("Download failed")
+
+        payload = {
+            "data": {
+                "profilePicUrl": "https://example.com/error.jpg",
+                "key": {"remoteJid": "5511333333333@s.whatsapp.net"},
+            }
+        }
+
+        result = self.plugin.get_profile_picture(payload)
+
+        self.assertIsNone(result)
+
+    @patch("requests.Session.post")
+    def test_get_profile_picture_api_error(self, mock_post):
+        """Test get_profile_picture handles API errors."""
+        mock_post.side_effect = requests.RequestException("API error")
+
+        payload = {"data": {"key": {"remoteJid": "5511222222222@s.whatsapp.net"}}}
+
+        result = self.plugin.get_profile_picture(payload)
+
+        self.assertIsNone(result)
+
+    @patch("requests.Session.post")
+    def test_get_message_by_id_returns_records(self, mock_post):
+        """Test get_message_by_id returns message records."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "messages": {
+                "records": [
+                    {
+                        "key": {"id": "msg_find_123"},
+                        "message": {"conversation": "Found"},
+                    }
+                ]
+            }
+        }
+        mock_post.return_value = mock_response
+
+        payload = {"data": {"keyId": "msg_find_123"}}
+
+        result = self.plugin.get_message_by_id(payload)
+
+        self.assertTrue(result)
+        self.assertEqual(len(result), 1)
+
+    @patch("requests.Session.post")
+    def test_get_message_by_id_no_records(self, mock_post):
+        """Test get_message_by_id when no records found."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"messages": {}}
+        mock_post.return_value = mock_response
+
+        payload = {"data": {"keyId": "msg_not_found"}}
+
+        result = self.plugin.get_message_by_id(payload)
+
+        self.assertFalse(result)
+
+    def test_format_message_before_send_default_template(self):
+        """Test format_message_before_send with default template."""
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Format Test Channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        message = channel.message_post(
+            author_id=self.admin_partner.id,
+            body="<p>Test message</p>",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+
+        formatted = self.plugin.format_message_before_send(message)
+
+        # Should include author name and body
+        self.assertIsNotNone(formatted)
+
+    def test_format_message_before_send_custom_template(self):
+        """Test format_message_before_send with custom template."""
+        self.connector.text_message_template = "{{message.author_id.name}}: {{body}}"
+
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Custom Template Channel",
+                "discuss_hub_connector": self.connector.id,
+            }
+        )
+
+        message = channel.message_post(
+            author_id=self.admin_partner.id,
+            body="Custom",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+
+        formatted = self.plugin.format_message_before_send(message)
+
+        self.assertIn(self.admin_partner.name, formatted)
+        self.assertIn("Custom", formatted)

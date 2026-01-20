@@ -306,6 +306,7 @@ class Plugin(PluginBase):
     def logout_instance(self):
         """Get the status of the connector"""
         url = f"{self.evolution_url}/instance/logout/{self.connector.name}"
+        query = None
         try:
             query = self.session.delete(url, timeout=10)
             if query.status_code == 404:
