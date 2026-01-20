@@ -181,9 +181,11 @@ class TestExamplePlugin(HttpCase):
             headers={"Content-Type": "application/json"},
         )
 
-        # Try to mark as read with a different contact identifier that will be created
-        # Since get_or_create_partner with create_contact=False won't create a new partner
-        # if it doesn't exist, we need to ensure the partner doesn't exist beforehand
+        # Try to mark as read with a different contact identifier
+        # that will be created
+        # Since get_or_create_partner with create_contact=False
+        # won't create a new partner if it doesn't exist,
+        # we need to ensure the partner doesn't exist beforehand
         # Let's test with a contact that was never created
         read_payload = {
             "message_id": "4444",
@@ -196,13 +198,18 @@ class TestExamplePlugin(HttpCase):
             data=json.dumps(read_payload),
             headers={"Content-Type": "application/json"},
         )
-        
+
         # Check if response has content before trying to parse JSON
         if response.text:
             data = response.json()
             assert data["success"] is False, "Should return failure"
-            assert ("Partner not found" in data["error"] or "Channel member not found" in data["error"]), \
-                f"Error should mention partner or channel member not found, got: {data['error']}"
+            assert (
+                "Partner not found" in data["error"]
+                or "Channel member not found" in data["error"]
+            ), (
+                "Error should mention partner or channel member"
+                f" not found, got: {data['error']}"
+            )
         else:
             # If no response content, the error happened during processing
             # which is expected when partner is not found

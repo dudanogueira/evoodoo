@@ -199,12 +199,13 @@ class Plugin(PluginBase):
                 ],
                 limit=1,
             )
-            
+
             if not channel_member:
                 _logger.info(
                     "action:process_payload"
                     + f"event:message.update.read({discuss_hub_message_id})"
-                    + f" channel_member: not found for partner {partner.id} in channel {channel_id}"
+                    + f" channel_member: not found for partner {partner.id}"
+                    + f" in channel {channel_id}"
                 )
                 return {
                     "success": False,
@@ -212,7 +213,7 @@ class Plugin(PluginBase):
                     "event": "messages.update.mark_read",
                     "error": "Channel member not found",
                 }
-            
+
             channel_member._mark_as_read(message.id)
 
             return {
@@ -220,7 +221,7 @@ class Plugin(PluginBase):
                 "action": "process_payload",
                 "event": "messages.update.mark_read",
             }
-        
+
         # If no message_id provided
         return {
             "success": False,
